@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "cenco-wp-fromulario-documentos-client-side-solution",
+    "id": "70f10ee1-6f36-4fa1-bdf5-ef16ca3ca9cb",
+    "version": "1.5.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.21.1"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "CENCO-wp-Fromulario-Documentos description"
+      },
+      "longDescription": {
+        "default": "CENCO-wp-Fromulario-Documentos description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "cenco-wp-fromulario-documentos Feature",
+        "description": "The feature that activates elements of the cenco-wp-fromulario-documentos solution.",
+        "id": "d35948ea-900e-4743-9c8f-c9e9e95a25f7",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/cenco-wp-fromulario-documentos.sppkg"
+  }
+}

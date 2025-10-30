@@ -1,0 +1,18 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.19.0",
+    "sdksVersions": {},
+    "version": "1.21.1",
+    "libraryName": "cenco-wp-fromulario-documentos",
+    "libraryId": "70f10ee1-6f36-4fa1-bdf5-ef16ca3ca9cb",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "CENCO-wp-Fromulario-Documentos",
+    "solutionShortDescription": "CENCO-wp-Fromulario-Documentos description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

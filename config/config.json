@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "wp-formulario-documentos-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/wpFormularioDocumentos/WpFormularioDocumentosWebPart.js",
+          "manifest": "./src/webparts/wpFormularioDocumentos/WpFormularioDocumentosWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "WpFormularioDocumentosWebPartStrings": "lib/webparts/wpFormularioDocumentos/loc/{locale}.js"
+  }
+}

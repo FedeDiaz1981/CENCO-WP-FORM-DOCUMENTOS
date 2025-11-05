@@ -9,6 +9,7 @@ import { SPHttpClient } from "@microsoft/sp-http";
 /* ==== Fluent UI ==== */
 import {
   ThemeProvider,
+  createTheme,
   Text,
   TooltipHost,
   Label,
@@ -47,17 +48,49 @@ import {
 } from "@fluentui/react/lib/Pickers";
 import { IPersonaProps } from "@fluentui/react/lib/Persona";
 
+/* ===== tema corporativo Cencosud ===== */
+const cencoTheme = createTheme({
+  palette: {
+    themePrimary: "#005596",
+    themeLighterAlt: "#f2f7fb",
+    themeLighter: "#d6e5f2",
+    themeLight: "#b7d0e7",
+    themeTertiary: "#71a5d0",
+    themeSecondary: "#357fba",
+    themeDarkAlt: "#004d87",
+    themeDark: "#00416f",
+    themeDarker: "#002f51",
+    neutralLighterAlt: "#f5f5f5",
+    neutralLighter: "#f0f0f0",
+    neutralLight: "#e6e6e6",
+    neutralQuaternaryAlt: "#d6d6d6",
+    neutralQuaternary: "#cccccc",
+    neutralTertiaryAlt: "#c4c4c4",
+    neutralTertiary: "#333333",
+    neutralSecondary: "#2d2d2d",
+    neutralPrimaryAlt: "#272727",
+    neutralPrimary: "#333333",
+    neutralDark: "#1f1f1f",
+    black: "#1a1a1a",
+    white: "#ffffff",
+  },
+  effects: {
+    roundedCorner2: "12px",
+    elevation8: "0 6px 18px rgba(0,0,0,.05)" as any,
+  },
+});
+
 /* ===== Tipos ===== */
 interface IFormState {
-  fechaderegistro: string; // DateOnly (input yyyy-mm-dd)
-  ruc: string; // Text
-  proveedorId?: number; // Lookup single -> proveedorId
-  usuarioregistradorIds: number[]; // UserMulti -> usuarioregistradorId: []
-  Title: string; // Text
-  codigodecontrato: string; // Text
-  periododesde: string; // DateOnly
-  periodohasta: string; // DateOnly
-  anio: string; // Año (internal a_x00f1_o)
+  fechaderegistro: string;
+  ruc: string;
+  proveedorId?: number;
+  usuarioregistradorIds: number[];
+  Title: string;
+  codigodecontrato: string;
+  periododesde: string;
+  periodohasta: string;
+  anio: string;
   archivo?: File;
   isSaving: boolean;
   error?: string;
@@ -129,20 +162,18 @@ function Section({
 const toSpDate = (yyyyMmDd: string): string | undefined => {
   const v = (yyyyMmDd || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return undefined;
-  // Mandamos UTC a medianoche
   return `${v}T00:00:00Z`;
 };
 
-/* ---- Estilos Fluent (responsive + Microsoft look) ---- */
+/* ---- Estilos Fluent adaptados al tema ---- */
 const getClasses = (theme = getTheme()) =>
   mergeStyleSets({
     root: {
       padding: 12,
+      background: theme.palette.neutralLighterAlt,
       [`@media (min-width: 640px)`]: { padding: 16 },
       [`@media (min-width: 1024px)`]: { padding: 20 },
     },
-
-    /* layout principal */
     mainRow: {
       display: "flex",
       alignItems: "flex-start",
@@ -165,8 +196,6 @@ const getClasses = (theme = getTheme()) =>
       flex: "1 1 0",
       minWidth: 0,
     },
-
-    /* panel */
     panel: {
       background: theme.palette.white,
       border: `1px solid ${theme.palette.neutralLight}`,
@@ -176,7 +205,7 @@ const getClasses = (theme = getTheme()) =>
       animation: "fadeIn .25s ease-out both",
     },
     panelHeader: {
-      background: theme.palette.neutralLighterAlt,
+      background: theme.palette.themeLighterAlt,
       borderBottom: `1px solid ${theme.palette.neutralLight}`,
       padding: "12px 16px",
     },
@@ -184,16 +213,6 @@ const getClasses = (theme = getTheme()) =>
       padding: 16,
       [`@media (min-width: 1024px)`]: { padding: 20 },
     },
-
-    /* encabezado del formulario */
-    formHeader: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 12,
-    },
-
-    /* grid 12 cols */
     row: {
       display: "grid",
       gridTemplateColumns: "repeat(12, 1fr)",
@@ -213,8 +232,6 @@ const getClasses = (theme = getTheme()) =>
       gridColumn: "span 12",
       [`@media (min-width: 1024px)`]: { gridColumn: "span 4" },
     },
-
-    /* nav panel */
     navPanel: {
       background: theme.palette.white,
       border: `1px solid ${theme.palette.neutralLight}`,
@@ -224,36 +241,21 @@ const getClasses = (theme = getTheme()) =>
     navHeader: {
       padding: "12px 16px",
       borderBottom: `1px solid ${theme.palette.neutralLight}`,
-      background: theme.palette.neutralLighterAlt,
+      background: theme.palette.themeLighterAlt,
       borderTopLeftRadius: 12,
       borderTopRightRadius: 12,
     },
     navBody: { padding: 12 },
-
-    /* ajustes para Nav */
     navResponsive: {
       maxHeight: "calc(100vh - 180px)",
       overflowY: "auto",
-
       ".ms-Nav-link": {
         display: "block !important",
         height: "auto !important",
         minHeight: 40,
-        padding: "clamp(6px, 0.8vw, 10px) clamp(10px, 1vw, 14px)",
+        padding: "6px 12px",
         borderRadius: 8,
         border: "1px solid transparent",
-        lineHeight: "1.35 !important",
-        boxSizing: "border-box",
-      },
-      ".ms-Nav-linkText": {
-        display: "block !important",
-        whiteSpace: "normal !important",
-        wordBreak: "break-word",
-        overflowWrap: "anywhere",
-        hyphens: "auto",
-        fontWeight: 500,
-        fontSize: "clamp(12px, 1.2vw, 16px)",
-        lineHeight: "1.35 !important",
       },
       ".ms-Nav-link:hover": {
         background: theme.palette.themeLighterAlt,
@@ -262,10 +264,9 @@ const getClasses = (theme = getTheme()) =>
       ".ms-Nav .is-selected > .ms-Nav-link": {
         background: theme.palette.themeLighter,
         borderColor: theme.palette.themePrimary,
-        boxShadow: "inset 0 0 0 1px rgba(0,0,0,.06)",
+        boxShadow: "inset 0 0 0 1px rgba(0,0,0,.03)",
       },
     },
-
     "@global": {
       "@keyframes fadeIn": {
         from: { opacity: 0, transform: "translateY(6px)" },
@@ -286,7 +287,6 @@ export default function WpFormularioDocumentos(
 ): JSX.Element {
   const [state, setState] = useState<IFormState>(initialState);
 
-  /* ---------- Candado anti doble submit SIN Symbol ---------- */
   const submitLockedRef = useRef<boolean>(false);
   const acquireLock = (): boolean => {
     if (submitLockedRef.current) return false;
@@ -297,35 +297,22 @@ export default function WpFormularioDocumentos(
     submitLockedRef.current = false;
   };
 
-  // Instancia del servicio (memoizada)
   const sp = useMemo(
     () => new SpService((props as any).spHttpClient, props.siteUrl),
     [props.spHttpClient, props.siteUrl]
   );
 
-  // Tipos (Nav)
   const [tipos, setTipos] = useState<ITipoFormularioItem[]>([]);
   const [loadingTipos, setLoadingTipos] = useState<boolean>(true);
   const [errorTipos, setErrorTipos] = useState<string | undefined>(undefined);
 
-  // Proveedores (lookup)
-  const [proveedorOptions, setProveedorOptions] = useState<IDropdownOption[]>(
-    []
-  );
-
-  // People Picker selección
+  const [proveedorOptions, setProveedorOptions] = useState<IDropdownOption[]>([]);
   const [peopleSelected, setPeopleSelected] = useState<IPersonaProps[]>([]);
-
-  // Selección de template
   const [selectedId, setSelectedId] = useState<number | undefined>(undefined);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
-    undefined
-  );
+  const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(undefined);
   const visible = sectionsForTemplate(selectedTemplate);
-
   const fileRef = useRef<HTMLInputElement>(null);
 
-  /* ====== MODAL DE AYUDA ====== */
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTitle, setHelpTitle] = useState<string>("");
   const [helpUrl, setHelpUrl] = useState<string>("");
@@ -360,7 +347,7 @@ export default function WpFormularioDocumentos(
     );
   };
 
-  /* ===== Cargar Tipos (Nav) ===== */
+  /* ===== Cargar Tipos ===== */
   useEffect(() => {
     const loadTipos = async (): Promise<void> => {
       try {
@@ -392,16 +379,14 @@ export default function WpFormularioDocumentos(
     void loadTipos();
   }, [sp]);
 
-  /* ===== Cargar opciones del lookup 'proveedor' (Razón social) ===== */
+  /* ===== Cargar opciones del lookup 'proveedor' ===== */
   useEffect(() => {
     const loadProveedorOptions = async (): Promise<void> => {
       try {
-        // 1) Traer definición del campo lookup
         const fieldUrl =
           `${props.siteUrl}/_api/web/lists/getbytitle('Formularios')/fields` +
           `/getbyinternalnameortitle('proveedor')?$select=Title,InternalName,LookupList,LookupField,SchemaXml`;
 
-        // ⚠️ sin headers custom para no perder Accept
         const fieldRes = await props.spHttpClient.get(
           fieldUrl,
           SPHttpClient.configurations.v1
@@ -410,7 +395,6 @@ export default function WpFormularioDocumentos(
         const fj: any = await fieldRes.json();
         const f: any = fj?.d ?? fj;
 
-        // 2) Extraer LookupList, LookupField y (si existe) LookupWebId
         let lookupListId: string | undefined =
           typeof f?.LookupList === "string" ? f.LookupList : undefined;
         let showField: string =
@@ -419,7 +403,6 @@ export default function WpFormularioDocumentos(
             : "Title";
         let lookupWebId: string | undefined = undefined;
 
-        // Fallback a SchemaXml para lo que falte
         if (typeof f?.SchemaXml === "string") {
           const schema: string = f.SchemaXml;
           if (!lookupListId) {
@@ -437,16 +420,13 @@ export default function WpFormularioDocumentos(
           return;
         }
 
-        // Normalizar GUIDs (sin llaves)
         lookupListId = lookupListId.replace(/[{}]/g, "");
         if (lookupWebId) lookupWebId = lookupWebId.replace(/[{}]/g, "");
 
-        // 3) Construir raíz correcta del API según LookupWebId
         const apiRoot = lookupWebId
           ? `${props.siteUrl}/_api/site/openWebById('${lookupWebId}')/web`
           : `${props.siteUrl}/_api/web`;
 
-        // 4) Traer ítems del lookup
         const itemsUrl =
           `${apiRoot}/lists(guid'${lookupListId}')/items` +
           `?$select=Id,${showField}&$orderby=${showField} asc`;
@@ -463,7 +443,6 @@ export default function WpFormularioDocumentos(
           itemsJson?.value ||
           (Array.isArray(itemsJson) ? itemsJson : []);
 
-        // 5) Mapear a opciones
         const opts: IDropdownOption[] = rows
           .map((r) => ({ key: Number(r.Id), text: String(r[showField] ?? "") }))
           .filter((o) => !!o.text);
@@ -478,7 +457,7 @@ export default function WpFormularioDocumentos(
     void loadProveedorOptions();
   }, [props.siteUrl, props.spHttpClient]);
 
-  /* ===== People Picker: búsqueda de usuarios (siteusers) ===== */
+  /* ===== People Picker ===== */
   const resolvePeople = async (filter: string): Promise<IPersonaProps[]> => {
     const q = (filter || "").trim();
     if (!q) return [];
@@ -510,7 +489,6 @@ export default function WpFormularioDocumentos(
     }
   };
 
-  /* ===== Helpers de estado ===== */
   const setField = (key: keyof IFormState, value: any): void => {
     setState((s) => ({
       ...s,
@@ -521,7 +499,6 @@ export default function WpFormularioDocumentos(
   };
 
   const onSave = async (): Promise<void> => {
-    // Candado anti doble submit
     if (!acquireLock()) return;
 
     try {
@@ -532,11 +509,9 @@ export default function WpFormularioDocumentos(
         success: undefined,
       }));
 
-      // --- Secciones visibles según la botonera/template ---
       const visibleSections = sectionsForTemplate(selectedTemplate);
 
-      // --- Lista blanca por sección ---
-      const allowed = [];
+      const allowed: string[] = [];
       if (visibleSections.has(1)) {
         allowed.push(
           "fechaderegistro",
@@ -557,12 +532,9 @@ export default function WpFormularioDocumentos(
       if (visibleSections.has(3)) {
         allowed.push("periododesde", "periodohasta", "a_x00f1_o");
       }
-      // Sección 4: archivo (se maneja aparte abajo)
 
-      // Normalizaciones rápidas
       const trim = (v?: string) => (v ? v.trim() : "");
 
-      // IDs únicos sin Array.from ni Set (compatible ES5)
       const srcIds = state.usuarioregistradorIds || [];
       const uniqIds: number[] = [];
       for (let i = 0; i < srcIds.length; i++) {
@@ -572,45 +544,30 @@ export default function WpFormularioDocumentos(
         }
       }
 
-      // Body completo con tipos correctos (SIN filtrar todavía)
       const bodyAll: Record<string, any> = {
         Title: trim(state.Title) || undefined,
-
-        // Fechas: helper devuelve ISO o undefined
         fechaderegistro: toSpDate(state.fechaderegistro),
         periododesde: toSpDate(state.periododesde),
         periodohasta: toSpDate(state.periodohasta),
-
-        // Textos
         ruc: trim(state.ruc) || undefined,
         codigodecontrato: trim(state.codigodecontrato) || undefined,
-
-        // Lookup single (number)
         proveedorId:
           typeof state.proveedorId === "number" && !isNaN(state.proveedorId)
             ? state.proveedorId
             : undefined,
-
-        // User multi (array de números)
         ...(uniqIds.length ? { usuarioregistradorId: uniqIds } : {}),
-
-        // Tipo de formulario (string)
         tipodeformulario: trim(state.tipodeformulario) || undefined,
-
-        // Año -> Edm.String
         a_x00f1_o: trim(state.anio) || undefined,
       };
 
-      // Filtrar: enviar SOLO lo permitido por secciones visibles
       const body: Record<string, any> = {};
       for (const k in bodyAll) {
         if (!Object.prototype.hasOwnProperty.call(bodyAll, k)) continue;
-        if (allowed.indexOf(k) === -1) continue; // filtro clave
+        if (allowed.indexOf(k) === -1) continue;
         const v = (bodyAll as any)[k];
         if (v !== undefined && v !== null && v !== "") body[k] = v;
       }
 
-      // Archivo: solo si la sección 4 está visible
       const archivoParaSubir = visibleSections.has(4)
         ? state.archivo
         : undefined;
@@ -631,7 +588,6 @@ export default function WpFormularioDocumentos(
     }
   };
 
-  /* ===== Nav (Fluent) ===== */
   const navGroups: INavLinkGroup[] = useMemo(() => {
     const links: INavLink[] = tipos.map((t) => ({
       key: String(t.Id),
@@ -658,31 +614,26 @@ export default function WpFormularioDocumentos(
     }
     setSelectedId(id);
     setSelectedTemplate(match?.template);
-
-    // <= NUEVO: guardar el texto del botón en el estado
     setField("tipodeformulario", match?.Title || "");
   };
 
-  const fluentTheme =
-    (props as any).fluentTheme || (props as any).theme || undefined;
-  const classes = getClasses(fluentTheme || getTheme());
-
+  // usamos SIEMPRE el tema corporativo
+  const classes = getClasses(cencoTheme);
   const formActionsTokens: IStackTokens = { childrenGap: 8 };
   const headerStyles: IStackStyles = { root: { marginBottom: 8 } };
 
   return (
-    <ThemeProvider theme={fluentTheme}>
+    <ThemeProvider theme={cencoTheme}>
       <div className={classes.root}>
-        {/* ===== layout principal ===== */}
         <div className={classes.mainRow}>
-          {/* izquierda: nav */}
+          {/* izquierda */}
           <div className={classes.leftCol}>
             <div className={classes.navPanel}>
               <div className={classes.navHeader}>
                 <Text
                   variant="mediumPlus"
                   block
-                  styles={{ root: { fontWeight: FontWeights.semibold } }}
+                  styles={{ root: { fontWeight: FontWeights.semibold, color: cencoTheme.palette.themePrimary } }}
                 >
                   Tipo de formulario
                 </Text>
@@ -710,19 +661,6 @@ export default function WpFormularioDocumentos(
                       ariaLabel="Tipos de formulario"
                       styles={{
                         root: { width: "100%" },
-                        link: {
-                          height: "auto",
-                          minHeight: 40,
-                          paddingTop: "clamp(6px, 0.8vw, 10px)",
-                          paddingBottom: "clamp(6px, 0.8vw, 10px)",
-                          lineHeight: 1.35,
-                        },
-                        linkText: {
-                          whiteSpace: "normal",
-                          wordBreak: "break-word",
-                          fontSize: "clamp(12px, 1.2vw, 16px)",
-                          lineHeight: 1.35,
-                        },
                       }}
                       onRenderLink={(link?: INavLink) =>
                         link ? (
@@ -738,7 +676,7 @@ export default function WpFormularioDocumentos(
             </div>
           </div>
 
-          {/* derecha: formulario */}
+          {/* derecha */}
           <div className={classes.rightCol}>
             <Stack
               styles={headerStyles}
@@ -748,7 +686,7 @@ export default function WpFormularioDocumentos(
             >
               <Text
                 variant="xLarge"
-                styles={{ root: { fontWeight: FontWeights.semibold } }}
+                styles={{ root: { fontWeight: FontWeights.semibold, color: cencoTheme.palette.themePrimary } }}
               >
                 Registro de documentos
               </Text>
@@ -777,7 +715,6 @@ export default function WpFormularioDocumentos(
                 </MessageBar>
               )}
 
-              {/* === Sección 1 === */}
               {visible.has(1) && (
                 <Section title="1.- Identificación" classes={classes}>
                   <div className={classes.row}>
@@ -846,7 +783,6 @@ export default function WpFormularioDocumentos(
                 </Section>
               )}
 
-              {/* === Sección 2 === */}
               {visible.has(2) && (
                 <Section title="2.- Datos del Contrato" classes={classes}>
                   <div className={classes.row}>
@@ -932,7 +868,6 @@ export default function WpFormularioDocumentos(
                 </Section>
               )}
 
-              {/* === Sección 3 === */}
               {visible.has(3) && (
                 <Section title="2.- Datos generales" classes={classes}>
                   <div className={classes.row}>
@@ -976,7 +911,6 @@ export default function WpFormularioDocumentos(
                 </Section>
               )}
 
-              {/* === Sección 4 === */}
               {visible.has(4) && (
                 <Section title="3.- Cargar Documento" classes={classes}>
                   <div className={classes.row}>
@@ -1029,7 +963,6 @@ export default function WpFormularioDocumentos(
                 </Section>
               )}
 
-              {/* Acciones */}
               <Stack
                 horizontal
                 wrap
@@ -1056,14 +989,13 @@ export default function WpFormularioDocumentos(
                 />
               </Stack>
 
-              {/* Mensajes */}
               {state.error && (
                 <MessageBar
-                  messageBarType={MessageBarType.success}
+                  messageBarType={MessageBarType.error}
                   isMultiline
                   styles={{ root: { marginTop: 12 } }}
                 >
-                  El item se guardó exitosamente
+                  {state.error}
                 </MessageBar>
               )}
               {state.success && (
@@ -1072,7 +1004,7 @@ export default function WpFormularioDocumentos(
                   isMultiline
                   styles={{ root: { marginTop: 12 } }}
                 >
-                  El item se guardó exitosamente
+                  {state.success}
                 </MessageBar>
               )}
             </form>
@@ -1080,7 +1012,6 @@ export default function WpFormularioDocumentos(
         </div>
       </div>
 
-      {/* === MODAL DE AYUDA (images de Site Assets) === */}
       <Dialog
         hidden={!helpOpen}
         onDismiss={closeHelp}

@@ -9,10 +9,6 @@ type BodyMap = Record<string, any>;
 export class SpService {
   constructor(private spHttpClient: SPHttpClient, private siteUrl: string) {}
 
-  /* =========================
-     Helpers generales (ES5)
-  ========================== */
-
   private escListTitle(listTitle: string): string {
     return listTitle.replace(/'/g, "''");
   }
@@ -21,13 +17,11 @@ export class SpService {
     return haystack && needle ? haystack.indexOf(needle) !== -1 : false;
   }
 
-  // Necesario para verbose
   private getItemEntityType(listTitle: string): string {
     const safe = listTitle.replace(/ /g, "_x0020_");
     return `SP.Data.${safe}ListItem`;
   }
 
-  // Leer cuerpo de respuesta sin romper si ya fue consumido
   private async safeReadText(res: SPHttpClientResponse): Promise<string> {
     try {
       return await res.text();
@@ -43,10 +37,6 @@ export class SpService {
     }
   }
 
-  /* =========================
-     API: Tipos (Nav)
-  ========================== */
-
   async getTiposFormulario(): Promise<any[]> {
     const url =
       `${this.siteUrl}/_api/web/lists/getbytitle('` +
@@ -59,12 +49,8 @@ export class SpService {
     return Array.isArray(j) ? j : j?.value ?? j?.d?.results ?? [];
   }
 
-  /* =========================
-     Crear ítem + adjunto
-  ========================== */
-
   async createFormulario(body: BodyMap, file?: File): Promise<number> {
-    const listTitle = "Formularios";
+    const listTitle = "Formularios"; // si tu lista real se llama "Documentos", cambiá esto.
     const listTitleEsc = this.escListTitle(listTitle);
 
     const norm = this.normalizeForRest(body);
@@ -86,21 +72,8 @@ export class SpService {
     if (!id) throw new Error("No se obtuvo el Id del ítem creado.");
 
     if (file) {
-      try {
-        await this.addAttachment(listTitle, id, file, true);
-      } catch (e: any) {
-        const msg = String(e && e.message ? e.message : e || "");
-        const lower = msg.toLowerCase();
-        if (
-          this.contains(lower, "name is already in use") ||
-          this.contains(lower, "already exists") ||
-          this.contains(lower, "body stream already read")
-        ) {
-          // ruido conocido: no mostrar error
-        } else {
-          throw e;
-        }
-      }
+      // acá es donde te estaba explotando
+      await this.addAttachment(listTitle, id, file, true);
     }
 
     return id;
@@ -139,9 +112,11 @@ export class SpService {
   ): Promise<SPHttpClientResponse> {
     const options: ISPHttpClientOptions = {
       headers: {
+        // estos dos los quiere SPO sí o sí
         Accept: "application/json;odata=verbose",
         "Content-Type": "application/json;odata=verbose",
-        "odata-version": "3.0",
+        // no fuerces odata-version viejo si no hace falta
+        "odata-version": "",
       },
       body: JSON.stringify(body),
     };
@@ -156,10 +131,6 @@ export class SpService {
     }
     return res;
   }
-
-  /* =========================
-     Sanitizado de nombre (ES5)
-  ========================== */
 
   private stripDiacriticsLegacy(s: string): string {
     if (!s) return "";
@@ -201,66 +172,62 @@ export class SpService {
     return finalName;
   }
 
-  /* =========================
-     Adjuntos
-  ========================== */
-
   private async addAttachment(
-    listTitle: string,
-    itemId: number,
-    file: File,
-    overwrite: boolean = true
-  ): Promise<void> {
-    if (!file || file.size === 0) throw new Error("El archivo está vacío.");
+  listTitle: string,
+  itemId: number,
+  file: File,
+  overwrite: boolean = true
+): Promise<void> {
+  if (!file || file.size === 0) throw new Error("El archivo está vacío.");
 
-    const listTitleEsc = this.escListTitle(listTitle);
-    const base = `${this.siteUrl}/_api/web/lists/getbytitle('${listTitleEsc}')/items(${itemId})/AttachmentFiles`;
+  const listTitleEsc = this.escListTitle(listTitle);
+  const base = `${this.siteUrl}/_api/web/lists/getbytitle('${listTitleEsc}')/items(${itemId})/AttachmentFiles`;
 
-    const cleaned = this.sanitizeFileName(file.name);
-    const safeODataName = cleaned.replace(/'/g, "''");
+  const cleaned = this.sanitizeFileName(file.name);
+  const safeODataName = cleaned.replace(/'/g, "''");
 
-    // 1) Overwrite: intentar eliminar. IGNORAR cualquier fallo (400, 404, etc.)
-    try {
-      const delUrl = `${base}/getByFileName('${safeODataName}')`;
-      const del = await this.spHttpClient.post(
-        delUrl,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            "IF-MATCH": "*",
-            "X-HTTP-Method": "DELETE",
-            Accept: "application/json;odata=verbose",
-          },
-        }
-      );
-      // si no ok, lo ignoramos igual (hay tenants que devuelven 400 en vez de 404)
-      if (!del.ok) { /* ignore */ }
-    } catch { /* ignore delete errors */ }
-
-    // 2) Subir
-    const up = await this.spHttpClient.post(
-      `${base}/add(FileName='${safeODataName}')`,
+  // 1) intentar borrar si existe
+  try {
+    const delUrl = `${base}/getByFileName('${safeODataName}')`;
+    await this.spHttpClient.post(
+      delUrl,
       SPHttpClient.configurations.v1,
       {
         headers: {
-          Accept: "application/json;odata=verbose",
-          "Content-Type": "application/octet-stream",
+          "IF-MATCH": "*",
+          "X-HTTP-Method": "DELETE",
+          // SharePoint odia "application/json;odata=verbose" acá
+          Accept: "*/*",
         },
-        body: file,
       }
     );
+  } catch { /* ignorar */ }
 
-    if (!up.ok) {
-      const msg = (await this.safeReadText(up)) || "";
-      const lower = msg.toLowerCase();
-      if (
-        this.contains(lower, "already in use") ||
-        this.contains(lower, "already exists") ||
-        this.contains(lower, "body stream already read")
-      ) {
-        return; // no mostrar error
-      }
-      throw new Error(msg || `Error adjuntando archivo: HTTP ${up.status}`);
+  // 2) subir archivo
+  const up = await this.spHttpClient.post(
+    `${base}/add(FileName='${safeODataName}')`,
+    SPHttpClient.configurations.v1,
+    {
+      headers: {
+        Accept: "*/*",
+        "Content-Type": "application/octet-stream",
+      },
+      body: file,
     }
+  );
+
+  if (!up.ok) {
+    const msg = (await this.safeReadText(up)) || "";
+    const lower = msg.toLowerCase();
+    if (
+      this.contains(lower, "already in use") ||
+      this.contains(lower, "already exists") ||
+      this.contains(lower, "body stream already read")
+    ) {
+      return;
+    }
+    throw new Error(msg || `Error adjuntando archivo: HTTP ${up.status}`);
   }
+}
+
 }

@@ -41,7 +41,7 @@ import {
   ITextFieldProps,
 } from "@fluentui/react";
 
-/* People Picker */
+/* People Picker (solo cuando proveedor = false) */
 import {
   NormalPeoplePicker,
   IBasePickerSuggestionsProps,
@@ -165,6 +165,16 @@ const toSpDate = (yyyyMmDd: string): string | undefined => {
   return `${v}T00:00:00Z`;
 };
 
+const getTodayYMD = (): string => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const mm = (m < 10 ? "0" : "") + m;
+  const dd = (day < 10 ? "0" : "") + day;
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 /* ---- Estilos Fluent adaptados al tema ---- */
 const getClasses = (theme = getTheme()) =>
   mergeStyleSets({
@@ -253,9 +263,15 @@ const getClasses = (theme = getTheme()) =>
         display: "block !important",
         height: "auto !important",
         minHeight: 40,
-        padding: "6px 12px",
+        padding: "8px 12px",
         borderRadius: 8,
         border: "1px solid transparent",
+      },
+      ".ms-Nav-linkText": {
+        whiteSpace: "normal",        // permite varias líneas
+        wordBreak: "break-word",     // corta palabras largas
+        lineHeight: 1.3,
+        fontSize: 13,
       },
       ".ms-Nav-link:hover": {
         background: theme.palette.themeLighterAlt,
@@ -306,16 +322,25 @@ export default function WpFormularioDocumentos(
   const [loadingTipos, setLoadingTipos] = useState<boolean>(true);
   const [errorTipos, setErrorTipos] = useState<string | undefined>(undefined);
 
-  const [proveedorOptions, setProveedorOptions] = useState<IDropdownOption[]>([]);
+  const [proveedorOptions, setProveedorOptions] = useState<IDropdownOption[]>(
+    []
+  );
   const [peopleSelected, setPeopleSelected] = useState<IPersonaProps[]>([]);
   const [selectedId, setSelectedId] = useState<number | undefined>(undefined);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(undefined);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
+    undefined
+  );
   const visible = sectionsForTemplate(selectedTemplate);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTitle, setHelpTitle] = useState<string>("");
   const [helpUrl, setHelpUrl] = useState<string>("");
+
+  // usuarios permitidos como "usuario registrador" según la lista Proveedores
+  const [allowedRegistradores, setAllowedRegistradores] = useState<
+    IPersonaProps[]
+  >([]);
 
   const openHelp = (title: string, url: string): void => {
     setHelpTitle(title);
@@ -457,7 +482,111 @@ export default function WpFormularioDocumentos(
     void loadProveedorOptions();
   }, [props.siteUrl, props.spHttpClient]);
 
-  /* ===== People Picker ===== */
+  /* ===== Cargar proveedor desde lista "Proveedores" según usuario actual ===== */
+  useEffect(() => {
+    const loadProveedorActual = async (): Promise<void> => {
+      if (!props.proveedor) return;
+
+      try {
+        // Usuario actual
+        const currentUserRes = await props.spHttpClient.get(
+          `${props.siteUrl}/_api/web/currentuser`,
+          SPHttpClient.configurations.v1
+        );
+        if (!currentUserRes.ok) {
+          console.warn("No se pudo obtener el usuario actual");
+          return;
+        }
+        const cuJson: any = await currentUserRes.json();
+        const cu: any = cuJson?.d ?? cuJson;
+        const userId: number | undefined = cu?.Id;
+        if (!userId) return;
+
+        // Proveedor vinculado al usuario actual:
+        //   - campo Usuarios (para la relación)
+        //   - campo usuarioregistrador (usuarios permitidos)
+        const provRes = await props.spHttpClient.get(
+          `${props.siteUrl}/_api/web/lists/getbytitle('Proveedores')/items` +
+            `?$select=Id,RUC,Title,Usuarios/Id,` +
+            `usuarioregistrador/Id,usuarioregistrador/Title,usuarioregistrador/EMail` +
+            `&$expand=Usuarios,usuarioregistrador` +
+            `&$filter=Usuarios/Id eq ${userId}`,
+          SPHttpClient.configurations.v1
+        );
+
+        if (!provRes.ok) {
+          console.warn("No se pudo consultar la lista Proveedores");
+          return;
+        }
+
+        const provJson: any = await provRes.json();
+        const rows: any[] = provJson?.d?.results || provJson?.value || [];
+        const prov = rows[0];
+
+        if (!prov) {
+          console.warn("No se encontró proveedor para el usuario actual");
+          setAllowedRegistradores([]);
+          return;
+        }
+
+        const today = getTodayYMD();
+
+        // Normalizo usuarioregistrador a array, soporte simple/multi
+        const rawUR = prov.usuarioregistrador;
+        const regsRaw: any[] = [];
+        if (rawUR) {
+          if (Array.isArray(rawUR)) {
+            regsRaw.push(...rawUR);
+          } else if (Array.isArray(rawUR.results)) {
+            regsRaw.push(...rawUR.results);
+          } else {
+            regsRaw.push(rawUR);
+          }
+        }
+
+        const regsPersonas: IPersonaProps[] = regsRaw
+          .map(
+            (u: any): IPersonaProps => ({
+              text: u.Title,
+              secondaryText: u.EMail || u.Email || "",
+              tertiaryText: `ID: ${u.Id}`,
+              id: String(u.Id),
+            })
+          )
+          .filter((p) => !!p.text);
+
+        setAllowedRegistradores(regsPersonas);
+
+        setState((s) => ({
+          ...s,
+          fechaderegistro: s.fechaderegistro || today,
+          ruc: prov.RUC || "",
+          proveedorId: typeof prov.Id === "number" ? prov.Id : s.proveedorId,
+          error: undefined,
+          success: undefined,
+        }));
+      } catch (err) {
+        console.warn("Error cargando proveedor actual:", err);
+        setAllowedRegistradores([]);
+      }
+    };
+
+    void loadProveedorActual();
+  }, [props.proveedor, props.siteUrl, props.spHttpClient]);
+
+  /* ===== Opciones para dropdown de Usuario registrador (cuando proveedor = true) ===== */
+  const registradorOptions: IDropdownOption[] = useMemo(
+    () =>
+      allowedRegistradores
+        .map((p) => ({
+          key: Number(p.id),
+          text: p.text || "",
+        }))
+        .filter((o) => !!o.text && !isNaN(o.key as number)),
+    [allowedRegistradores]
+  );
+
+  /* ===== People Picker (cuando proveedor = false) ===== */
   const resolvePeople = async (filter: string): Promise<IPersonaProps[]> => {
     const q = (filter || "").trim();
     if (!q) return [];
@@ -633,7 +762,12 @@ export default function WpFormularioDocumentos(
                 <Text
                   variant="mediumPlus"
                   block
-                  styles={{ root: { fontWeight: FontWeights.semibold, color: cencoTheme.palette.themePrimary } }}
+                  styles={{
+                    root: {
+                      fontWeight: FontWeights.semibold,
+                      color: cencoTheme.palette.themePrimary,
+                    },
+                  }}
                 >
                   Tipo de formulario
                 </Text>
@@ -686,7 +820,12 @@ export default function WpFormularioDocumentos(
             >
               <Text
                 variant="xLarge"
-                styles={{ root: { fontWeight: FontWeights.semibold, color: cencoTheme.palette.themePrimary } }}
+                styles={{
+                  root: {
+                    fontWeight: FontWeights.semibold,
+                    color: cencoTheme.palette.themePrimary,
+                  },
+                }}
               >
                 Registro de documentos
               </Text>
@@ -727,6 +866,7 @@ export default function WpFormularioDocumentos(
                           setField("fechaderegistro", v || "")
                         }
                         id="fechaderegistro"
+                        disabled={props.proveedor === true}
                       />
                       <input
                         type="hidden"
@@ -741,6 +881,7 @@ export default function WpFormularioDocumentos(
                         value={state.ruc}
                         onChange={(_, v) => setField("ruc", v || "")}
                         id="ruc"
+                        disabled={props.proveedor === true}
                       />
                     </div>
 
@@ -754,30 +895,75 @@ export default function WpFormularioDocumentos(
                           setField("proveedorId", Number(option?.key))
                         }
                         id="proveedor"
+                        disabled={props.proveedor === true}
                       />
                     </div>
 
                     <div className={classes.c6}>
                       <Label>Usuario registrador</Label>
-                      <NormalPeoplePicker
-                        onResolveSuggestions={resolvePeople}
-                        getTextFromItem={(p: IPersonaProps) => p.text || ""}
-                        pickerSuggestionsProps={suggestionProps}
-                        selectedItems={peopleSelected}
-                        onChange={(items?: IPersonaProps[]) => {
-                          const arr = items || [];
-                          setPeopleSelected(arr);
-                          const ids = arr
-                            .map((p) => Number(p.id))
-                            .filter((n) => !isNaN(n));
-                          setField("usuarioregistradorIds", ids);
-                        }}
-                        inputProps={{
-                          "aria-label": "Buscar usuarios",
-                          placeholder: "Escribí para buscar usuarios…",
-                        }}
-                        resolveDelay={300}
-                      />
+
+                      {props.proveedor ? (
+                        <>
+                          <Dropdown
+                            placeholder="Seleccioná usuario(s)…"
+                            multiSelect
+                            options={registradorOptions}
+                            selectedKeys={state.usuarioregistradorIds}
+                            onChange={(_, option) => {
+                              if (!option) return;
+                              const idNum = Number(option.key);
+                              setState((s) => {
+                                let ids = s.usuarioregistradorIds || [];
+                                if (option.selected) {
+                                  if (ids.indexOf(idNum) === -1) {
+                                    ids = [...ids, idNum];
+                                  }
+                                } else {
+                                  ids = ids.filter((x) => x !== idNum);
+                                }
+                                return {
+                                  ...s,
+                                  usuarioregistradorIds: ids,
+                                  error: undefined,
+                                  success: undefined,
+                                };
+                              });
+                            }}
+                            disabled={!registradorOptions.length}
+                          />
+                          {props.proveedor && !registradorOptions.length && (
+                            <Text
+                              variant="small"
+                              styles={{
+                                root: { color: "#a80000", marginTop: 4 },
+                              }}
+                            >
+                              No hay usuarios registradores configurados para
+                              este proveedor.
+                            </Text>
+                          )}
+                        </>
+                      ) : (
+                        <NormalPeoplePicker
+                          onResolveSuggestions={resolvePeople}
+                          getTextFromItem={(p: IPersonaProps) => p.text || ""}
+                          pickerSuggestionsProps={suggestionProps}
+                          selectedItems={peopleSelected}
+                          onChange={(items?: IPersonaProps[]) => {
+                            const arr = items || [];
+                            setPeopleSelected(arr);
+                            const ids = arr
+                              .map((p) => Number(p.id))
+                              .filter((n) => !isNaN(n));
+                            setField("usuarioregistradorIds", ids);
+                          }}
+                          inputProps={{
+                            "aria-label": "Buscar usuarios",
+                            placeholder: "Escribí para buscar usuarios…",
+                          }}
+                          resolveDelay={300}
+                        />
+                      )}
                     </div>
                   </div>
                 </Section>
@@ -914,6 +1100,95 @@ export default function WpFormularioDocumentos(
               {visible.has(4) && (
                 <Section title="3.- Cargar Documento" classes={classes}>
                   <div className={classes.row}>
+                    <div className={classes.c12}>
+                      {(() => {
+                        const t = (state.tipodeformulario || "")
+                          .trim()
+                          .toUpperCase();
+
+                        // Cargar contratos
+                        if (t === "CARGAR CONTRATOS") {
+                          return (
+                            <div
+                              style={{
+                                backgroundColor: "#ffe6e6",
+                                border: "1px solid #ff0000",
+                                color: "#cc0000",
+                                padding: "8px 12px",
+                                borderRadius: "8px",
+                                fontWeight: "bold",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                marginBottom: "12px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "24px",
+                                  lineHeight: "24px",
+                                }}
+                              >
+                                ❗
+                              </span>
+                              <span>
+                                El contrato a cargar debe ser el que cuente con
+                                la firma de <strong>CENCOSUD</strong> y del{" "}
+                                <strong>
+                                  representante del Transportista
+                                </strong>
+                                .
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        // SCTR / Plantillas Excel (cronogramas + SCTR)
+                        if (
+                          t === "CRONOGRAMA MANTENIMIENTO PREVENTIVO" ||
+                          t === "CRONOGRAMA DE EQUIPO DE FRIO" ||
+                          t === "CRONOGRAMA DE CAPACITACIÓN" ||
+                          t === "CRONOGRAMA DE CAPACITACION" ||
+                          t === "SCTR Y PLANTILLAS EXCEL" ||
+                          t === "SCTR Y PLANTILLAS EXCELL"
+                        ) {
+                          return (
+                            <div
+                              style={{
+                                backgroundColor: "#ffe6e6",
+                                border: "1px solid #ff0000",
+                                color: "#cc0000",
+                                padding: "8px 12px",
+                                borderRadius: "8px",
+                                fontWeight: "bold",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                marginBottom: "12px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "24px",
+                                  lineHeight: "24px",
+                                }}
+                              >
+                                ❗
+                              </span>
+                              <span>
+                                Los documentos para adjuntar deben estar según
+                                formato Excel el cual deberán descargar de la
+                                página de Inicio. Caso contrario se rechazará
+                                el registro.
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })()}
+                    </div>
+
                     <div className={classes.c8}>
                       <Label htmlFor="archivo">Archivo</Label>
                       <Stack

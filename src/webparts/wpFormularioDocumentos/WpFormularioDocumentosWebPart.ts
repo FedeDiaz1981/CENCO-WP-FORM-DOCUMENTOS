@@ -4,7 +4,7 @@ import {
   PropertyPaneDropdown,
   IPropertyPaneDropdownOption,
   PropertyPaneLabel,
-  //PropertyPaneToggle
+  PropertyPaneToggle
 } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import * as React from 'react';
@@ -16,6 +16,7 @@ import { SPHttpClient } from '@microsoft/sp-http';
 export interface IWpFormularioDocumentosWebPartProps {
   listTitle?: string;
   fieldMap: IFieldMap;
+  proveedor?: boolean;
 }
 
 export default class WpFormularioDocumentosWebPart
@@ -34,7 +35,9 @@ export default class WpFormularioDocumentosWebPart
         siteUrl: this.context.pageContext.web.absoluteUrl,
         spHttpClient: this.context.spHttpClient as SPHttpClient,
         listTitle: this.properties.listTitle,
-        fieldMap: this.properties.fieldMap || {}
+        fieldMap: this.properties.fieldMap || {},
+        proveedor: this.properties.proveedor,
+        context: this.context
       }
     );
 
@@ -54,11 +57,18 @@ export default class WpFormularioDocumentosWebPart
     if (this._loadingLists) return;
     this._loadingLists = true;
     try {
-      const url = `${this.context.pageContext.web.absoluteUrl}/_api/web/lists?$select=Title,BaseTemplate,Hidden&$filter=Hidden eq false and (BaseTemplate eq 100 or BaseTemplate eq 101)`;
+      const url =
+        `${this.context.pageContext.web.absoluteUrl}` +
+        `/_api/web/lists?$select=Title,BaseTemplate,Hidden` +
+        `&$filter=Hidden eq false and (BaseTemplate eq 100 or BaseTemplate eq 101)`;
+
       const res = await this.context.spHttpClient.get(url, SPHttpClient.configurations.v1);
       const json = await res.json();
       const rows = (json.value || []) as Array<{ Title: string; BaseTemplate: number }>;
-      this._listOptions = rows.map(r => ({ key: r.Title, text: r.Title })).sort((a,b)=> a.text.localeCompare(b.text));
+
+      this._listOptions = rows
+        .map(r => ({ key: r.Title, text: r.Title }))
+        .sort((a, b) => a.text.localeCompare(b.text));
     } catch (e) {
       // silencioso en PP
       this._listOptions = [];
@@ -73,22 +83,24 @@ export default class WpFormularioDocumentosWebPart
     this._loadingFields = true;
     try {
       const url =
-        `${this.context.pageContext.web.absoluteUrl}/_api/web/lists/getbytitle('${encodeURIComponent(listTitle)}')/fields` +
+        `${this.context.pageContext.web.absoluteUrl}` +
+        `/_api/web/lists/getbytitle('${encodeURIComponent(listTitle)}')/fields` +
         `?$select=InternalName,Title,Hidden,ReadOnlyField,Sealed,TypeAsString` +
         `&$filter=Hidden eq false and ReadOnlyField eq false and Sealed eq false`;
+
       const res = await this.context.spHttpClient.get(url, SPHttpClient.configurations.v1);
       const json = await res.json();
       const rows = (json.value || []) as Array<{ InternalName: string; Title: string; TypeAsString: string }>;
 
       // Dejamos campos comunes de entrada
       const allow = new Set<string>([
-        'Text','Note','Number','DateTime','Currency','User','Lookup','Boolean'
+        'Text', 'Note', 'Number', 'DateTime', 'Currency', 'User', 'Lookup', 'Boolean'
       ]);
 
       this._fieldOptions = rows
         .filter(r => allow.has(r.TypeAsString))
         .map(r => ({ key: r.InternalName, text: `${r.Title} (${r.InternalName})` }))
-        .sort((a,b)=> a.text.localeCompare(b.text));
+        .sort((a, b) => a.text.localeCompare(b.text));
     } catch (e) {
       this._fieldOptions = [];
     } finally {
@@ -115,26 +127,37 @@ export default class WpFormularioDocumentosWebPart
   }
 
   protected getPropertyPaneConfiguration(): IPropertyPaneConfiguration {
-    const fieldOptions = this._fieldOptions.length ? this._fieldOptions : [{ key: '', text: this._loadingFields ? 'Cargando campos…' : 'Seleccione una lista primero' }];
+    const fieldOptions = this._fieldOptions.length
+      ? this._fieldOptions
+      : [{ key: '', text: this._loadingFields ? 'Cargando campos…' : 'Seleccione una lista primero' }];
 
     return {
       pages: [
         {
-          header: { description: "Vinculación dinámica a listas/campos" },
+          header: { description: 'Vinculación dinámica a listas/campos' },
           groups: [
             {
-              groupName: "Lista de SharePoint",
+              groupName: 'Lista de SharePoint',
               groupFields: [
                 PropertyPaneDropdown('listTitle', {
                   label: 'Lista de destino',
-                  options: this._listOptions.length ? this._listOptions : [{ key: '', text: this._loadingLists ? 'Cargando listas…' : 'No hay listas' }],
+                  options: this._listOptions.length
+                    ? this._listOptions
+                    : [{ key: '', text: this._loadingLists ? 'Cargando listas…' : 'No hay listas' }],
                   selectedKey: this.properties.listTitle
                 }),
-                PropertyPaneLabel('', { text: 'Seleccione la lista y luego asigne los campos.' }),
+                PropertyPaneLabel('', {
+                  text: 'Seleccione la lista y luego asigne los campos.'
+                }),
+                PropertyPaneToggle('proveedor', {
+                  label: 'Proveedor',
+                  onText: 'Sí',
+                  offText: 'No'
+                })
               ]
             },
             {
-              groupName: "Mapeo de campos (InternalName)",
+              groupName: 'Mapeo de campos (InternalName)',
               groupFields: [
                 PropertyPaneDropdown('fieldMap.title', { label: '→ Nombre del contrato', options: fieldOptions }),
                 PropertyPaneDropdown('fieldMap.fechaderegistro', { label: '→ Fecha de registro', options: fieldOptions }),

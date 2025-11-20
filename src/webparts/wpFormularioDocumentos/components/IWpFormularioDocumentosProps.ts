@@ -1,4 +1,5 @@
 import { SPHttpClient } from "@microsoft/sp-http";
+import { WebPartContext } from "@microsoft/sp-webpart-base";
 
 export interface IFieldMap {
   title?: string;
@@ -21,4 +22,9 @@ export interface IWpFormularioDocumentosProps {
 
   /** Mapeo de campos (InternalName) elegido en el Property Pane */
   fieldMap: IFieldMap;
+
+  proveedor?: boolean;
+
+  context?: WebPartContext;
+
 }

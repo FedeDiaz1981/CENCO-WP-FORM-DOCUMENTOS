@@ -268,8 +268,8 @@ const getClasses = (theme = getTheme()) =>
         border: "1px solid transparent",
       },
       ".ms-Nav-linkText": {
-        whiteSpace: "normal",        // permite varias líneas
-        wordBreak: "break-word",     // corta palabras largas
+        whiteSpace: "normal", // permite varias líneas
+        wordBreak: "break-word", // corta palabras largas
         lineHeight: 1.3,
         fontSize: 13,
       },
@@ -900,7 +900,8 @@ export default function WpFormularioDocumentos(
                     </div>
 
                     <div className={classes.c6}>
-                      <Label>Usuario registrador</Label>
+                      {/* Marca de campo obligatorio */}
+                      <Label required>Usuario registrador</Label>
 
                       {props.proveedor ? (
                         <>
@@ -909,6 +910,7 @@ export default function WpFormularioDocumentos(
                             multiSelect
                             options={registradorOptions}
                             selectedKeys={state.usuarioregistradorIds}
+                            required // <-- también marcamos el control
                             onChange={(_, option) => {
                               if (!option) return;
                               const idNum = Number(option.key);
@@ -960,6 +962,7 @@ export default function WpFormularioDocumentos(
                           inputProps={{
                             "aria-label": "Buscar usuarios",
                             placeholder: "Escribí para buscar usuarios…",
+                            "aria-required": true, // marca accesible de obligatorio
                           }}
                           resolveDelay={300}
                         />
@@ -1134,9 +1137,7 @@ export default function WpFormularioDocumentos(
                               <span>
                                 El contrato a cargar debe ser el que cuente con
                                 la firma de <strong>CENCOSUD</strong> y del{" "}
-                                <strong>
-                                  representante del Transportista
-                                </strong>
+                                <strong>representante del Transportista</strong>
                                 .
                               </span>
                             </div>
@@ -1178,8 +1179,8 @@ export default function WpFormularioDocumentos(
                               <span>
                                 Los documentos para adjuntar deben estar según
                                 formato Excel el cual deberán descargar de la
-                                página de Inicio. Caso contrario se rechazará
-                                el registro.
+                                página de Inicio. Caso contrario se rechazará el
+                                registro.
                               </span>
                             </div>
                           );

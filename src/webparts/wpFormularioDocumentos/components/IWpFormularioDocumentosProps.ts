@@ -11,20 +11,20 @@ export interface IFieldMap {
   periododesde?: string;
   periodohasta?: string;
   anio?: string;
+  codigodedocumentos?: string;
 }
 
 export interface IWpFormularioDocumentosProps {
   siteUrl: string;
   spHttpClient: SPHttpClient;
-
-  /** Lista elegida en el Property Pane */
   listTitle?: string;
-
-  /** Mapeo de campos (InternalName) elegido en el Property Pane */
   fieldMap: IFieldMap;
-
   proveedor?: boolean;
-
   context?: WebPartContext;
 
+  /** ✅ imágenes de ayuda (URL) */
+  helpImgNombreContrato?: string;
+  helpImgCodigoContrato?: string;
+  helpImgFechaInicio?: string;
+  helpImgFechaFin?: string;
 }

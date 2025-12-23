@@ -4,7 +4,8 @@ import {
   PropertyPaneDropdown,
   IPropertyPaneDropdownOption,
   PropertyPaneLabel,
-  PropertyPaneToggle
+  PropertyPaneToggle,
+  PropertyPaneTextField,
 } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import * as React from 'react';
@@ -17,6 +18,12 @@ export interface IWpFormularioDocumentosWebPartProps {
   listTitle?: string;
   fieldMap: IFieldMap;
   proveedor?: boolean;
+
+  /** Ayudas (URLs) */
+  helpImgNombreContrato?: string;
+  helpImgCodigoContrato?: string;
+  helpImgFechaInicio?: string;
+  helpImgFechaFin?: string;
 }
 
 export default class WpFormularioDocumentosWebPart
@@ -37,7 +44,11 @@ export default class WpFormularioDocumentosWebPart
         listTitle: this.properties.listTitle,
         fieldMap: this.properties.fieldMap || {},
         proveedor: this.properties.proveedor,
-        context: this.context
+        context: this.context,
+        helpImgNombreContrato: this.properties.helpImgNombreContrato,
+        helpImgCodigoContrato: this.properties.helpImgCodigoContrato,
+        helpImgFechaInicio: this.properties.helpImgFechaInicio,
+        helpImgFechaFin: this.properties.helpImgFechaFin
       }
     );
 
@@ -52,6 +63,11 @@ export default class WpFormularioDocumentosWebPart
     return Version.parse('1.0');
   }
 
+  /** Escapa comillas simples para OData */
+  private _escODataString(value: string): string {
+    return (value || '').replace(/'/g, "''");
+  }
+
   /** Carga las listas del sitio */
   private async _loadLists(): Promise<void> {
     if (this._loadingLists) return;
@@ -63,14 +79,18 @@ export default class WpFormularioDocumentosWebPart
         `&$filter=Hidden eq false and (BaseTemplate eq 100 or BaseTemplate eq 101)`;
 
       const res = await this.context.spHttpClient.get(url, SPHttpClient.configurations.v1);
+      if (!res.ok) {
+        this._listOptions = [];
+        return;
+      }
+
       const json = await res.json();
       const rows = (json.value || []) as Array<{ Title: string; BaseTemplate: number }>;
 
       this._listOptions = rows
         .map(r => ({ key: r.Title, text: r.Title }))
         .sort((a, b) => a.text.localeCompare(b.text));
-    } catch (e) {
-      // silencioso en PP
+    } catch {
       this._listOptions = [];
     } finally {
       this._loadingLists = false;
@@ -81,45 +101,59 @@ export default class WpFormularioDocumentosWebPart
   private async _loadFields(listTitle?: string): Promise<void> {
     if (!listTitle || this._loadingFields) { this._fieldOptions = []; return; }
     this._loadingFields = true;
+
     try {
+      const safeTitle = this._escODataString(listTitle);
+
       const url =
         `${this.context.pageContext.web.absoluteUrl}` +
-        `/_api/web/lists/getbytitle('${encodeURIComponent(listTitle)}')/fields` +
+        `/_api/web/lists/getbytitle('${safeTitle}')/fields` +
         `?$select=InternalName,Title,Hidden,ReadOnlyField,Sealed,TypeAsString` +
-        `&$filter=Hidden eq false and ReadOnlyField eq false and Sealed eq false`;
+        `&$filter=Hidden eq false and Sealed eq false`;
 
       const res = await this.context.spHttpClient.get(url, SPHttpClient.configurations.v1);
-      const json = await res.json();
-      const rows = (json.value || []) as Array<{ InternalName: string; Title: string; TypeAsString: string }>;
+      if (!res.ok) {
+        this._fieldOptions = [];
+        return;
+      }
 
-      // Dejamos campos comunes de entrada
+      const json = await res.json();
+      const rows = (json.value || []) as Array<{
+        InternalName: string;
+        Title: string;
+        TypeAsString: string;
+        ReadOnlyField?: boolean;
+      }>;
+
       const allow = new Set<string>([
-        'Text', 'Note', 'Number', 'DateTime', 'Currency', 'User', 'Lookup', 'Boolean'
+        'Text', 'Note', 'Number', 'DateTime', 'Currency', 'Boolean',
+        'User', 'UserMulti',
+        'Lookup', 'LookupMulti'
       ]);
 
       this._fieldOptions = rows
         .filter(r => allow.has(r.TypeAsString))
-        .map(r => ({ key: r.InternalName, text: `${r.Title} (${r.InternalName})` }))
+        .map(r => {
+          const ro = r.ReadOnlyField ? ' RO' : '';
+          return { key: r.InternalName, text: `${r.Title} (${r.InternalName})${ro}` };
+        })
         .sort((a, b) => a.text.localeCompare(b.text));
-    } catch (e) {
+    } catch {
       this._fieldOptions = [];
     } finally {
       this._loadingFields = false;
     }
   }
 
-  /** Carga inicial asincrónica del PP */
   protected async onPropertyPaneConfigurationStart(): Promise<void> {
     await this._loadLists();
     await this._loadFields(this.properties.listTitle);
     this.context.propertyPane.refresh();
   }
 
-  /** Si cambia la lista, recarga campos y limpia mapeos */
   protected async onPropertyPaneFieldChanged(propertyPath: string, oldValue: any, newValue: any): Promise<void> {
     if (propertyPath === 'listTitle' && newValue !== oldValue) {
       await this._loadFields(newValue as string);
-      // Limpio mapeos al cambiar de lista
       this.properties.fieldMap = {};
       this.context.propertyPane.refresh();
       this.render();
@@ -146,9 +180,7 @@ export default class WpFormularioDocumentosWebPart
                     : [{ key: '', text: this._loadingLists ? 'Cargando listas…' : 'No hay listas' }],
                   selectedKey: this.properties.listTitle
                 }),
-                PropertyPaneLabel('', {
-                  text: 'Seleccione la lista y luego asigne los campos.'
-                }),
+                PropertyPaneLabel('', { text: 'Seleccione la lista y luego asigne los campos.' }),
                 PropertyPaneToggle('proveedor', {
                   label: 'Proveedor',
                   onText: 'Sí',
@@ -168,6 +200,28 @@ export default class WpFormularioDocumentosWebPart
                 PropertyPaneDropdown('fieldMap.periododesde', { label: '→ Fecha inicio (plazo / periodo)', options: fieldOptions }),
                 PropertyPaneDropdown('fieldMap.periodohasta', { label: '→ Fecha término (plazo / periodo)', options: fieldOptions }),
                 PropertyPaneDropdown('fieldMap.anio', { label: '→ Año', options: fieldOptions }),
+                PropertyPaneDropdown('fieldMap.codigodedocumentos', { label: '→ Código de documentos (multilínea)', options: fieldOptions }),
+              ]
+            },
+            {
+              groupName: 'Ayudas (imágenes en modal)',
+              groupFields: [
+                PropertyPaneTextField('helpImgNombreContrato', {
+                  label: 'Imagen ayuda → Nombre del contrato (URL)',
+                  placeholder: 'https://.../nombre-contrato.png'
+                }),
+                PropertyPaneTextField('helpImgCodigoContrato', {
+                  label: 'Imagen ayuda → Código de contrato (URL)',
+                  placeholder: 'https://.../codigo-contrato.png'
+                }),
+                PropertyPaneTextField('helpImgFechaInicio', {
+                  label: 'Imagen ayuda → Fecha de inicio (URL)',
+                  placeholder: 'https://.../fecha-inicio.png'
+                }),
+                PropertyPaneTextField('helpImgFechaFin', {
+                  label: 'Imagen ayuda → Fecha de término (URL)',
+                  placeholder: 'https://.../fecha-fin.png'
+                }),
               ]
             }
           ]

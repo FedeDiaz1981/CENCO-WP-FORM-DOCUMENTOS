@@ -28,11 +28,13 @@ export class SpService {
     } catch {
       try {
         const anyRes: any = res as any;
-        if (anyRes && anyRes.nativeResponse && anyRes.nativeResponse.clone) {
+        if (anyRes?.nativeResponse?.clone) {
           const clone = anyRes.nativeResponse.clone();
           return await clone.text();
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       return "";
     }
   }
@@ -49,8 +51,9 @@ export class SpService {
     return Array.isArray(j) ? j : j?.value ?? j?.d?.results ?? [];
   }
 
-  async createFormulario(body: BodyMap, file?: File): Promise<number> {
-    const listTitle = "Formularios"; // si tu lista real se llama "Documentos", cambiá esto.
+  // ✅ CAMBIO: ahora recibe múltiples archivos
+  async createFormulario(body: BodyMap, archivos?: File[]): Promise<number> {
+    const listTitle = "Formularios";
     const listTitleEsc = this.escListTitle(listTitle);
 
     const norm = this.normalizeForRest(body);
@@ -58,6 +61,7 @@ export class SpService {
     const verboseBody: any = {
       __metadata: { type: this.getItemEntityType(listTitle) },
     };
+
     for (const k in norm) {
       if (!Object.prototype.hasOwnProperty.call(norm, k)) continue;
       const v = (norm as any)[k];
@@ -71,9 +75,12 @@ export class SpService {
     const id: number = created?.d?.Id ?? created?.Id ?? created?.id;
     if (!id) throw new Error("No se obtuvo el Id del ítem creado.");
 
-    if (file) {
-      // acá es donde te estaba explotando
-      await this.addAttachment(listTitle, id, file, true);
+    // ✅ adjuntar N archivos
+    const files = Array.isArray(archivos) ? archivos : [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (!f) continue;
+      await this.addAttachment(listTitle, id, f, true);
     }
 
     return id;
@@ -81,20 +88,31 @@ export class SpService {
 
   private normalizeForRest(input: BodyMap): BodyMap {
     const out: BodyMap = {};
+
     for (const k in input) {
       if (!Object.prototype.hasOwnProperty.call(input, k)) continue;
       const v = (input as any)[k];
       if (v === undefined || v === null || v === "") continue;
 
+      // Multi-user field: acepta array y lo convierte a { results: [] }
       if (k.toLowerCase() === "usuarioregistradorid") {
-        if (v && typeof v === "object" && Object.prototype.hasOwnProperty.call(v, "results")) {
-          out["usuarioregistradorId"] = { results: (v as any).results as number[] };
+        if (
+          v &&
+          typeof v === "object" &&
+          Object.prototype.hasOwnProperty.call(v, "results")
+        ) {
+          // ✅ FIX dot-notation
+          out.usuarioregistradorId = {
+            results: (v as any).results as number[],
+          };
         } else if (Object.prototype.toString.call(v) === "[object Array]") {
-          out["usuarioregistradorId"] = { results: v as number[] };
+          // ✅ FIX dot-notation
+          out.usuarioregistradorId = { results: v as number[] };
         }
         continue;
       }
 
+      // Lookups numéricos terminan con Id
       const endsWithId = k.length >= 2 && k.slice(-2) === "Id";
       if (endsWithId && typeof v === "number") {
         out[k] = v;
@@ -103,6 +121,7 @@ export class SpService {
 
       out[k] = v;
     }
+
     return out;
   }
 
@@ -112,31 +131,37 @@ export class SpService {
   ): Promise<SPHttpClientResponse> {
     const options: ISPHttpClientOptions = {
       headers: {
-        // estos dos los quiere SPO sí o sí
         Accept: "application/json;odata=verbose",
         "Content-Type": "application/json;odata=verbose",
-        // no fuerces odata-version viejo si no hace falta
         "odata-version": "",
       },
       body: JSON.stringify(body),
     };
+
     const res = await this.spHttpClient.post(
       url,
       SPHttpClient.configurations.v1,
       options
     );
+
     if (!res.ok) {
       const t = await this.safeReadText(res);
       throw new Error(t || `Error POST ${url}`);
     }
+
     return res;
   }
 
   private stripDiacriticsLegacy(s: string): string {
     if (!s) return "";
     const map: Array<[RegExp, string]> = [
-      [/[áàäâãå]/gi, "a"], [/[éèëê]/gi, "e"], [/[íìïî]/gi, "i"],
-      [/[óòöôõ]/gi, "o"], [/[úùüû]/gi, "u"], [/[ñ]/gi, "n"], [/[ç]/gi, "c"],
+      [/[áàäâãå]/gi, "a"],
+      [/[éèëê]/gi, "e"],
+      [/[íìïî]/gi, "i"],
+      [/[óòöôõ]/gi, "o"],
+      [/[úùüû]/gi, "u"],
+      [/[ñ]/gi, "n"],
+      [/[ç]/gi, "c"],
       [/[\u00E1\u00E0\u00E4\u00E2\u00E3\u00E5]/g, "a"],
       [/[\u00E9\u00E8\u00EB\u00EA]/g, "e"],
       [/[\u00ED\u00EC\u00EF\u00EE]/g, "i"],
@@ -164,70 +189,72 @@ export class SpService {
     const base3 = base2.replace(/\s+/g, " ");
     const base4 = base3.replace(/^[.\s]+|[.\s]+$/g, "") || "archivo";
 
-    const safeBase = base4.length > MAX_BASE ? base4.substring(0, MAX_BASE) : base4;
-    const safeExt = ext.replace(/['"#%&*:<>?/\\{|}~\s]/g, "").substring(0, MAX_EXT);
+    const safeBase =
+      base4.length > MAX_BASE ? base4.substring(0, MAX_BASE) : base4;
+    const safeExt = ext
+      .replace(/['"#%&*:<>?/\\{|}~\s]/g, "")
+      .substring(0, MAX_EXT);
 
-    let finalName = safeExt ? (safeBase + "." + safeExt.replace(/^\.+/, "")) : safeBase;
+    let finalName = safeExt
+      ? safeBase + "." + safeExt.replace(/^\.+/, "")
+      : safeBase;
+
     finalName = finalName.replace(/[.\s]+$/g, "");
     return finalName;
   }
 
   private async addAttachment(
-  listTitle: string,
-  itemId: number,
-  file: File,
-  overwrite: boolean = true
-): Promise<void> {
-  if (!file || file.size === 0) throw new Error("El archivo está vacío.");
+    listTitle: string,
+    itemId: number,
+    file: File,
+    overwrite: boolean = true
+  ): Promise<void> {
+    if (!file || file.size === 0) throw new Error("El archivo está vacío.");
 
-  const listTitleEsc = this.escListTitle(listTitle);
-  const base = `${this.siteUrl}/_api/web/lists/getbytitle('${listTitleEsc}')/items(${itemId})/AttachmentFiles`;
+    const listTitleEsc = this.escListTitle(listTitle);
+    const base = `${this.siteUrl}/_api/web/lists/getbytitle('${listTitleEsc}')/items(${itemId})/AttachmentFiles`;
 
-  const cleaned = this.sanitizeFileName(file.name);
-  const safeODataName = cleaned.replace(/'/g, "''");
+    const cleaned = this.sanitizeFileName(file.name);
+    const safeODataName = cleaned.replace(/'/g, "''");
 
-  // 1) intentar borrar si existe
-  try {
-    const delUrl = `${base}/getByFileName('${safeODataName}')`;
-    await this.spHttpClient.post(
-      delUrl,
-      SPHttpClient.configurations.v1,
-      {
+    // 1) borrar si existe (mantengo tu comportamiento; overwrite hoy no cambia reglas)
+    try {
+      const delUrl = `${base}/getByFileName('${safeODataName}')`;
+      await this.spHttpClient.post(delUrl, SPHttpClient.configurations.v1, {
         headers: {
           "IF-MATCH": "*",
           "X-HTTP-Method": "DELETE",
-          // SharePoint odia "application/json;odata=verbose" acá
           Accept: "*/*",
         },
+      });
+    } catch {
+      /* ignorar */
+    }
+
+    // 2) subir archivo
+    const up = await this.spHttpClient.post(
+      `${base}/add(FileName='${safeODataName}')`,
+      SPHttpClient.configurations.v1,
+      {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/octet-stream",
+        },
+        body: file,
       }
     );
-  } catch { /* ignorar */ }
 
-  // 2) subir archivo
-  const up = await this.spHttpClient.post(
-    `${base}/add(FileName='${safeODataName}')`,
-    SPHttpClient.configurations.v1,
-    {
-      headers: {
-        Accept: "*/*",
-        "Content-Type": "application/octet-stream",
-      },
-      body: file,
+    if (!up.ok) {
+      const msg = (await this.safeReadText(up)) || "";
+      const lower = msg.toLowerCase();
+      if (
+        this.contains(lower, "already in use") ||
+        this.contains(lower, "already exists") ||
+        this.contains(lower, "body stream already read")
+      ) {
+        return;
+      }
+      throw new Error(msg || `Error adjuntando archivo: HTTP ${up.status}`);
     }
-  );
-
-  if (!up.ok) {
-    const msg = (await this.safeReadText(up)) || "";
-    const lower = msg.toLowerCase();
-    if (
-      this.contains(lower, "already in use") ||
-      this.contains(lower, "already exists") ||
-      this.contains(lower, "body stream already read")
-    ) {
-      return;
-    }
-    throw new Error(msg || `Error adjuntando archivo: HTTP ${up.status}`);
   }
-}
-
 }

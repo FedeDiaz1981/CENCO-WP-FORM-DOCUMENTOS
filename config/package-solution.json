@@ -3,7 +3,7 @@
   "solution": {
     "name": "cenco-wp-fromulario-documentos-client-side-solution",
     "id": "70f10ee1-6f36-4fa1-bdf5-ef16ca3ca9cb",
-    "version": "5.0.0.0",
+    "version": "8.0.0.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,

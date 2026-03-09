@@ -17,6 +17,7 @@ import {
   DefaultButton,
   Spinner,
   SpinnerSize,
+  ProgressIndicator,
   MessageBar,
   MessageBarType,
   Nav,
@@ -26,9 +27,9 @@ import {
   mergeStyleSets,
   FontWeights,
   Stack,
-  IStackStyles,
   Dropdown,
   IDropdownOption,
+  Icon,
   IconButton,
   IButtonStyles,
   Modal, // ✅ NUEVO
@@ -46,32 +47,44 @@ const cencoTheme = createTheme({
   palette: {
     themePrimary: "#005596",
     themeLighterAlt: "#f2f7fb",
-    themeLighter: "#d6e5f2",
-    themeLight: "#b7d0e7",
-    themeTertiary: "#71a5d0",
-    themeSecondary: "#357fba",
+    themeLighter: "#deebf8",
+    themeLight: "#c2daf1",
+    themeTertiary: "#7eb2db",
+    themeSecondary: "#2f7fc0",
     themeDarkAlt: "#004d87",
-    themeDark: "#00416f",
+    themeDark: "#00406f",
     themeDarker: "#002f51",
-    neutralLighterAlt: "#f5f5f5",
-    neutralLighter: "#f0f0f0",
-    neutralLight: "#e6e6e6",
-    neutralQuaternaryAlt: "#d6d6d6",
-    neutralQuaternary: "#cccccc",
-    neutralTertiaryAlt: "#c4c4c4",
+    neutralLighterAlt: "#f4f9ff",
+    neutralLighter: "#edf4fb",
+    neutralLight: "#d7e5f3",
+    neutralQuaternaryAlt: "#ccdaea",
+    neutralQuaternary: "#c1d3e6",
+    neutralTertiaryAlt: "#b5c7dc",
     neutralTertiary: "#333333",
-    neutralSecondary: "#2d2d2d",
-    neutralPrimaryAlt: "#272727",
-    neutralPrimary: "#333333",
+    neutralSecondary: "#55687c",
+    neutralPrimaryAlt: "#233140",
+    neutralPrimary: "#1e2a36",
     neutralDark: "#1f1f1f",
     black: "#1a1a1a",
     white: "#ffffff",
   },
   effects: {
-    roundedCorner2: "12px",
-    elevation8: "0 6px 18px rgba(0,0,0,.05)" as any,
+    roundedCorner2: "18px",
+    elevation8: "0 12px 28px rgba(0,87,166,.12)" as any,
   },
 });
+
+const BRAND = {
+  canvas: "#eef4fb",
+  shell: "#f7fbff",
+  ink: "#1e2a36",
+  muted: "#617284",
+  border: "#cad9ea",
+  soft: "#e6f0fa",
+};
+
+const HERO_BG =
+  "radial-gradient(circle at 14% 20%, rgba(255,255,255,.18) 0 82px, transparent 83px), radial-gradient(circle at 86% -8%, rgba(255,255,255,.18) 0 128px, transparent 130px), linear-gradient(135deg, #005596 0%, #0067b2 48%, #0072bc 100%)";
 
 /* ===== Tipos ===== */
 interface ICodigoDocumentoRow {
@@ -174,17 +187,37 @@ function Section({
   return (
     <section className={classes.panel}>
       <div className={classes.panelHeader}>
-        <Text
-          variant="large"
-          block
-          styles={{ root: { fontWeight: FontWeights.semibold } }}
-        >
-          {title}
-        </Text>
+        <div className={classes.sectionTitleRow}>
+          <Icon iconName={getSectionIconName(title)} className={classes.sectionIcon} />
+          <Text
+            variant="large"
+            block
+            styles={{
+              root: {
+                fontWeight: FontWeights.semibold,
+                color: cencoTheme.palette.white,
+                lineHeight: 1.1,
+              },
+            }}
+          >
+            {title}
+          </Text>
+        </div>
       </div>
       <div className={classes.panelBody}>{children}</div>
     </section>
   );
+}
+
+function getSectionIconName(title: string): string {
+  const normalized = (title || "").toLowerCase();
+
+  if (normalized.indexOf("identific") !== -1) return "ContactCard";
+  if (normalized.indexOf("contrato") !== -1) return "PageEdit";
+  if (normalized.indexOf("codigo de documentos") !== -1) return "BulletedList";
+  if (normalized.indexOf("cargar documento") !== -1) return "Attach";
+  if (normalized.indexOf("datos generales") !== -1) return "PageList";
+  return "Page";
 }
 
 const toSpDate = (yyyyMmDd: string): string | undefined => {
@@ -224,25 +257,25 @@ const normName = (s: string): string => (s || "").trim().toLowerCase();
 const getClasses = (theme = getTheme()) =>
   mergeStyleSets({
     page: {
-      background: theme.palette.neutralLighterAlt,
+      background: `linear-gradient(180deg, ${BRAND.shell} 0%, ${BRAND.canvas} 100%)`,
       minHeight: "100%",
-      padding: 12,
-      [`@media (min-width: 640px)`]: { padding: 16 },
-      [`@media (min-width: 1024px)`]: { padding: 20 },
+      padding: 16,
+      [`@media (min-width: 640px)`]: { padding: 20 },
+      [`@media (min-width: 1024px)`]: { padding: 24 },
     },
-    container: { maxWidth: 1180, margin: "0 auto" },
+    container: { maxWidth: 1220, margin: "0 auto" },
     mainRow: {
       display: "flex",
       alignItems: "stretch",
-      gap: 16,
+      gap: 22,
       flexWrap: "nowrap",
       [`@media (max-width: 920px)`]: { flexWrap: "wrap" },
     },
     leftCol: {
-      flex: "0 0 280px",
-      width: 280,
+      flex: "0 0 300px",
+      width: 300,
       position: "sticky",
-      top: 12,
+      top: 16,
       alignSelf: "flex-start",
       [`@media (max-width: 920px)`]: {
         position: "static",
@@ -255,24 +288,110 @@ const getClasses = (theme = getTheme()) =>
       minWidth: 0,
       display: "flex",
       flexDirection: "column",
-      gap: 12,
+      gap: 18,
+    },
+    headerCard: {
+      background: HERO_BG,
+      border: "1px solid rgba(255,255,255,.12)",
+      borderRadius: 28,
+      boxShadow: "0 24px 44px rgba(0,87,166,.22)",
+      padding: "24px 26px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 18,
+      flexWrap: "wrap",
+      overflow: "hidden",
+      position: "relative",
+      selectors: {
+        "&::after": {
+          content: "\"\"",
+          position: "absolute",
+          inset: "auto -58px -88px auto",
+          width: 210,
+          height: 210,
+          borderRadius: "50%",
+          background: "rgba(255,255,255,.08)",
+          pointerEvents: "none",
+        },
+      },
+    },
+    headerTitleRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: 14,
+      minWidth: 0,
+      flex: "1 1 320px",
+    },
+    headerText: {
+      display: "flex",
+      flexDirection: "column",
+      minWidth: 0,
+      maxWidth: 520,
+      paddingRight: 12,
+    },
+    headerIcon: {
+      fontSize: 24,
+      color: theme.palette.white,
+      width: 56,
+      height: 56,
+      borderRadius: "50%",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "rgba(255,255,255,.14)",
+      border: "1px solid rgba(255,255,255,.22)",
+      boxShadow: "0 10px 22px rgba(0,0,0,.12)",
+    },
+    headerTitle: {
+      display: "block",
+      fontSize: 28,
+      fontWeight: 700,
+      color: theme.palette.white,
+      lineHeight: 1.12,
+      whiteSpace: "normal",
+      wordBreak: "break-word",
+      selectors: {
+        "@media (max-width: 640px)": {
+          fontSize: 24,
+        },
+      },
+    },
+    headerHint: {
+      display: "block",
+      marginTop: 8,
+      fontSize: 13,
+      lineHeight: 1.35,
+      color: "rgba(255,255,255,.82)",
     },
     panel: {
-      background: theme.palette.white,
-      border: `1px solid ${theme.palette.neutralLight}`,
-      borderRadius: 12,
-      boxShadow: theme.effects.elevation8,
+      background: "rgba(255,255,255,.94)",
+      border: `1px solid ${BRAND.border}`,
+      borderRadius: 24,
+      boxShadow: "0 18px 36px rgba(0,87,166,.09)",
       overflow: "hidden",
       animation: "fadeIn .18s ease-out both",
     },
     panelHeader: {
-      background: theme.palette.themeLighterAlt,
-      borderBottom: `1px solid ${theme.palette.neutralLight}`,
-      padding: "12px 16px",
+      padding: "18px 22px 0",
+    },
+    sectionTitleRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      width: "fit-content",
+      padding: "8px 16px",
+      borderRadius: 999,
+      background: "linear-gradient(135deg, #005596 0%, #0072bc 100%)",
+      boxShadow: "0 10px 18px rgba(0,87,166,.18)",
+    },
+    sectionIcon: {
+      fontSize: 18,
+      color: theme.palette.white,
     },
     panelBody: {
-      padding: 16,
-      [`@media (min-width: 1024px)`]: { padding: 20 },
+      padding: "18px 22px 22px",
+      [`@media (min-width: 1024px)`]: { padding: "20px 24px 24px" },
     },
     row: {
       display: "grid",
@@ -332,18 +451,27 @@ const getClasses = (theme = getTheme()) =>
     },
 
     navPanel: {
-      background: theme.palette.white,
-      border: `1px solid ${theme.palette.neutralLight}`,
-      borderRadius: 12,
-      boxShadow: theme.effects.elevation8,
+      background: "rgba(255,255,255,.94)",
+      border: `1px solid ${BRAND.border}`,
+      borderRadius: 24,
+      boxShadow: "0 18px 36px rgba(0,87,166,.09)",
       overflow: "hidden",
     },
     navHeader: {
-      padding: "12px 16px",
-      borderBottom: `1px solid ${theme.palette.neutralLight}`,
-      background: theme.palette.themeLighterAlt,
+      padding: "18px 20px",
+      borderBottom: `1px solid ${BRAND.border}`,
+      background: `linear-gradient(180deg, ${theme.palette.themeLighterAlt} 0%, ${BRAND.soft} 100%)`,
     },
-    navBody: { padding: 12 },
+    navTitleRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+    },
+    navIcon: {
+      fontSize: 18,
+      color: theme.palette.themePrimary,
+    },
+    navBody: { padding: 16 },
     navResponsive: {
       maxHeight: "calc(100vh - 220px)",
       overflowY: "auto",
@@ -351,10 +479,12 @@ const getClasses = (theme = getTheme()) =>
         "&& .ms-Nav-link": {
           display: "block !important",
           height: "auto !important",
-          minHeight: "44px !important",
+          minHeight: "48px !important",
           padding: "12px 14px !important",
-          borderRadius: "10px !important",
-          border: "1px solid transparent !important",
+          borderRadius: "16px !important",
+          border: `1px solid ${BRAND.border} !important`,
+          background: "rgba(255,255,255,.86) !important",
+          boxShadow: "0 6px 14px rgba(0,87,166,.05) !important",
         },
         "&& .ms-Nav-linkText": {
           whiteSpace: "normal !important",
@@ -362,14 +492,17 @@ const getClasses = (theme = getTheme()) =>
           lineHeight: "1.35 !important",
           fontSize: "15px !important",
           fontWeight: "600 !important",
+          color: `${BRAND.ink} !important`,
         },
         "&& .ms-Nav-link:hover": {
-          background: `${theme.palette.themeLighterAlt} !important`,
-          borderColor: `${theme.palette.themeLighter} !important`,
+          background: `${theme.palette.white} !important`,
+          borderColor: `#8bb8df !important`,
+          transform: "translateY(-1px)",
         },
         "&& .ms-Nav .is-selected > .ms-Nav-link": {
-          background: `${theme.palette.themeLighter} !important`,
+          background: `${theme.palette.white} !important`,
           borderColor: `${theme.palette.themePrimary} !important`,
+          boxShadow: "0 0 0 2px rgba(0,87,166,.12) inset !important",
         },
       },
     },
@@ -379,11 +512,24 @@ const getClasses = (theme = getTheme()) =>
       alignItems: "center",
       justifyContent: "space-between",
       gap: 8,
-      padding: "8px 10px",
-      border: `1px solid ${theme.palette.neutralLight}`,
-      borderRadius: 10,
-      background: theme.palette.white,
+      padding: "10px 12px",
+      border: `1px solid ${BRAND.border}`,
+      borderRadius: 18,
+      background: "linear-gradient(180deg, rgba(255,255,255,.98) 0%, #f6fbff 100%)",
       marginTop: 8,
+      boxShadow: "0 8px 18px rgba(0,87,166,.06)",
+    },
+    fileUploadRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      flexWrap: "wrap",
+    },
+    hiddenFileInput: {
+      display: "none",
+    },
+    fileHelpText: {
+      color: BRAND.muted,
     },
 
     codigosRow: {
@@ -403,15 +549,49 @@ const getClasses = (theme = getTheme()) =>
     actionsBar: {
       display: "flex",
       flexWrap: "wrap",
-      gap: 10,
+      gap: 12,
       alignItems: "center",
-      marginTop: 10,
+      marginTop: 12,
+    },
+    progressWrap: {
+      marginTop: 12,
+      background: "rgba(255,255,255,.96)",
+      border: `1px solid ${BRAND.border}`,
+      borderRadius: 20,
+      boxShadow: "0 16px 30px rgba(0,87,166,.09)",
+      padding: "14px 16px",
     },
 
     "@global": {
       "@keyframes fadeIn": {
         from: { opacity: 0, transform: "translateY(4px)" },
         to: { opacity: 1, transform: "none" },
+      },
+      ".cenco-doc-shell .ms-Label": {
+        color: BRAND.ink,
+        fontWeight: 600,
+      },
+      ".cenco-doc-shell .ms-TextField-fieldGroup, .cenco-doc-shell .ms-Dropdown-title, .cenco-doc-shell .ms-BasePicker-text": {
+        minHeight: "46px",
+        borderRadius: "18px",
+        borderColor: `${BRAND.border} !important`,
+        background: "#ffffff",
+        boxShadow: "0 6px 16px rgba(0,87,166,.05)",
+      },
+      ".cenco-doc-shell .ms-Dropdown-title": {
+        lineHeight: "44px",
+      },
+      ".cenco-doc-shell .ms-TextField-fieldGroup:hover, .cenco-doc-shell .ms-Dropdown-title:hover, .cenco-doc-shell .ms-BasePicker-text:hover": {
+        borderColor: "#8bb8df !important",
+      },
+      ".cenco-doc-shell .ms-TextField-field": {
+        fontSize: "14px",
+      },
+      ".cenco-doc-shell .ms-BasePicker-text input, .cenco-doc-shell .ms-DatePicker input": {
+        fontSize: "14px",
+      },
+      ".cenco-doc-shell .ms-Nav-link:focus::after": {
+        borderRadius: "16px",
       },
     },
   });
@@ -497,7 +677,7 @@ export default function WpFormularioDocumentos(
   >([]);
 
   const classes = getClasses(cencoTheme);
-  const headerStyles: IStackStyles = { root: { marginBottom: 8 } };
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // ✅ helper render label con icono
   const HelpLabel = (p: { text: string; imgUrl?: string }): JSX.Element => (
@@ -513,22 +693,61 @@ export default function WpFormularioDocumentos(
     </div>
   );
 
-  const buttonStyles: IButtonStyles = useMemo(
+  const primaryButtonStyles: IButtonStyles = useMemo(
     () => ({
       root: {
-        height: 48,
-        minHeight: 48,
-        padding: "0 18px",
-        borderRadius: 12,
-        fontSize: 18,
+        height: 44,
+        minHeight: 44,
+        padding: "0 20px",
+        borderRadius: 999,
+        fontSize: 14,
+        border: "none",
+        background: "linear-gradient(135deg, #005596 0%, #0072bc 100%)",
+        boxShadow: "0 12px 22px rgba(0,87,166,.2)",
       },
-      flexContainer: { height: 48 },
+      rootHovered: {
+        background: "linear-gradient(135deg, #004d87 0%, #0067b2 100%)",
+        boxShadow: "0 14px 24px rgba(0,87,166,.24)",
+      },
+      rootPressed: {
+        background: "linear-gradient(135deg, #00406f 0%, #005596 100%)",
+      },
+      flexContainer: { height: 44 },
       label: {
-        fontSize: 18,
+        fontSize: 14,
         fontWeight: 700,
         lineHeight: "1 !important",
+        color: "#ffffff",
       },
-      icon: { fontSize: 18 },
+      icon: { fontSize: 16, color: "#ffffff" },
+    }),
+    []
+  );
+
+  const secondaryButtonStyles: IButtonStyles = useMemo(
+    () => ({
+      root: {
+        height: 44,
+        minHeight: 44,
+        padding: "0 20px",
+        borderRadius: 999,
+        fontSize: 14,
+        border: `1px solid ${BRAND.border}`,
+        background: "rgba(255,255,255,.94)",
+        boxShadow: "0 8px 18px rgba(0,87,166,.08)",
+      },
+      rootHovered: {
+        background: "#ffffff",
+        borderColor: "#8bb8df",
+      },
+      flexContainer: { height: 44 },
+      label: {
+        fontSize: 14,
+        fontWeight: 600,
+        lineHeight: "1 !important",
+        color: BRAND.ink,
+      },
+      icon: { fontSize: 16, color: BRAND.ink },
     }),
     []
   );
@@ -1268,27 +1487,29 @@ export default function WpFormularioDocumentos(
 
   return (
     <ThemeProvider theme={cencoTheme}>
-      <div className={classes.page}>
+      <div className={`${classes.page} cenco-doc-shell`}>
         <div className={classes.container}>
           <div className={classes.mainRow}>
             {/* izquierda */}
             <div className={classes.leftCol}>
               <div className={classes.navPanel}>
                 <div className={classes.navHeader}>
-                  <Text
-                    variant="mediumPlus"
-                    block
-                    styles={{
-                      root: {
-                        fontWeight: FontWeights.semibold,
-                        color: cencoTheme.palette.themePrimary,
-                      },
-                    }}
-                  >
-                    Tipo de formulario
-                  </Text>
+                  <div className={classes.navTitleRow}>
+                    <Icon iconName="BulletedList" className={classes.navIcon} />
+                    <Text
+                      variant="mediumPlus"
+                      block
+                      styles={{
+                        root: {
+                          fontWeight: FontWeights.semibold,
+                          color: cencoTheme.palette.themePrimary,
+                        },
+                      }}
+                    >
+                      Tipo de formulario
+                    </Text>
+                  </div>
                 </div>
-
                 <div className={classes.navBody}>
                   {loadingTipos && (
                     <Spinner size={SpinnerSize.small} label="Cargando…" />
@@ -1323,35 +1544,14 @@ export default function WpFormularioDocumentos(
 
             {/* derecha */}
             <div className={classes.rightCol}>
-              <Stack
-                styles={headerStyles}
-                horizontal
-                horizontalAlign="space-between"
-                verticalAlign="center"
-              >
-                <Text
-                  variant="xLarge"
-                  styles={{
-                    root: {
-                      fontWeight: FontWeights.semibold,
-                      color: cencoTheme.palette.themePrimary,
-                    },
-                  }}
-                >
-                  Registro de documentos
-                </Text>
-
-                {state.isSaving && (
-                  <Stack
-                    horizontal
-                    tokens={{ childrenGap: 6 }}
-                    verticalAlign="center"
-                  >
-                    <Spinner size={SpinnerSize.small} />
-                    <Text variant="small">Guardando…</Text>
-                  </Stack>
-                )}
-              </Stack>
+              <div className={classes.headerCard}>
+                <div className={classes.headerTitleRow}>
+                  <Icon iconName="Page" className={classes.headerIcon} />
+                  <div className={classes.headerText}>
+                    <div className={classes.headerTitle}>Documentos</div>
+                  </div>
+                </div>
+              </div>
 
               <form
                 onSubmit={async (e): Promise<void> => {
@@ -1663,7 +1863,7 @@ export default function WpFormularioDocumentos(
                             text="Agregar fila"
                             iconProps={{ iconName: "Add" }}
                             onClick={addCodigoRow}
-                            styles={buttonStyles}
+                            styles={secondaryButtonStyles}
                           />
                         </div>
                       </>
@@ -1711,6 +1911,8 @@ export default function WpFormularioDocumentos(
                         <Label>Adjuntar archivos</Label>
 
                         <input
+                          ref={fileInputRef}
+                          className={classes.hiddenFileInput}
                           type="file"
                           multiple={!isRestricted}
                           onChange={(e) => {
@@ -1718,6 +1920,20 @@ export default function WpFormularioDocumentos(
                             e.currentTarget.value = "";
                           }}
                         />
+
+                        <div className={classes.fileUploadRow}>
+                          <DefaultButton
+                            text={isRestricted ? "Adjuntar archivo" : "Adjuntar archivos"}
+                            iconProps={{ iconName: "Upload" }}
+                            onClick={() => fileInputRef.current?.click()}
+                            styles={secondaryButtonStyles}
+                          />
+                          <Text variant="small" className={classes.fileHelpText}>
+                            {isRestricted
+                              ? "Se permite un solo archivo."
+                              : "Puedes cargar varios archivos."}
+                          </Text>
+                        </div>
 
                         {isRestricted &&
                           !!restrictedName &&
@@ -1774,7 +1990,7 @@ export default function WpFormularioDocumentos(
                     iconProps={
                       state.isSaving ? { iconName: "Sync" } : { iconName: "Save" }
                     }
-                    styles={buttonStyles}
+                    styles={primaryButtonStyles}
                   />
                   <DefaultButton
                     type="button"
@@ -1796,9 +2012,15 @@ export default function WpFormularioDocumentos(
                       refreshProveedor();
                     }}
                     iconProps={{ iconName: "Clear" }}
-                    styles={buttonStyles}
+                    styles={secondaryButtonStyles}
                   />
                 </div>
+
+                {state.isSaving && (
+                  <div className={classes.progressWrap}>
+                    <ProgressIndicator label="Guardando..." />
+                  </div>
+                )}
 
                 {state.error && (
                   <MessageBar

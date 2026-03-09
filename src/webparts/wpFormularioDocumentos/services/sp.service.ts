@@ -43,7 +43,8 @@ export class SpService {
     const url =
       `${this.siteUrl}/_api/web/lists/getbytitle('` +
       `${this.escListTitle("Tipo formulario")}')/items` +
-      `?$select=Id,Title,orden,Template&$orderby=orden asc`;
+      // ✅ AGREGADO: nombre (texto) + restringido/mostrar/bloquear (boolean)
+      `?$select=Id,Title,orden,Template,nombre,restringido,mostrar,bloquear&$orderby=orden asc`;
 
     const res = await this.spHttpClient.get(url, SPHttpClient.configurations.v1);
     if (!res.ok) throw new Error(await this.safeReadText(res));

@@ -102,6 +102,12 @@ interface ITipoFormularioItem {
   Title: string;
   orden: number;
   template: "A" | "B" | "C" | string;
+
+  // ✅ NUEVOS CAMPOS
+  nombre?: string; // single line text
+  restringido?: boolean; // yes/no
+  mostrar?: boolean; // yes/no (si false => no mostrar)
+  bloquear?: boolean; // yes/no (si true => no guardar)
 }
 
 function sectionsForTemplate(tpl?: string): Set<number> {
@@ -183,8 +189,24 @@ function Section({
 
 const toSpDate = (yyyyMmDd: string): string | undefined => {
   const v = (yyyyMmDd || "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return undefined;
-  return `${v}T00:00:00Z`;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return undefined;
+
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const local = new Date(y, mo - 1, d);
+  if (
+    isNaN(local.getTime()) ||
+    local.getFullYear() !== y ||
+    local.getMonth() !== mo - 1 ||
+    local.getDate() !== d
+  ) {
+    return undefined;
+  }
+
+  // Use midday UTC to avoid day shifting when SharePoint applies timezone conversion.
+  return `${v}T12:00:00Z`;
 };
 
 const getTodayYMD = (): string => {
@@ -196,6 +218,8 @@ const getTodayYMD = (): string => {
   const dd = (day < 10 ? "0" : "") + day;
   return `${yyyy}-${mm}-${dd}`;
 };
+
+const normName = (s: string): string => (s || "").trim().toLowerCase();
 
 const getClasses = (theme = getTheme()) =>
   mergeStyleSets({
@@ -452,6 +476,17 @@ export default function WpFormularioDocumentos(
     undefined
   );
 
+  const selectedTipo = useMemo(() => {
+    if (!selectedId) return undefined;
+    for (let i = 0; i < tipos.length; i++)
+      if (tipos[i].Id === selectedId) return tipos[i];
+    return undefined;
+  }, [tipos, selectedId]);
+
+  const isBlocked = !!selectedTipo?.bloquear;
+  const isRestricted = !!selectedTipo?.restringido;
+  const restrictedName = (selectedTipo?.nombre || "").trim();
+
   const visible = useMemo(
     () => visibleSectionsFor(selectedTemplate, state.tipodeformulario),
     [selectedTemplate, state.tipodeformulario]
@@ -535,18 +570,34 @@ export default function WpFormularioDocumentos(
         setErrorTipos(undefined);
 
         const data = await sp.getTiposFormulario();
-        setTipos(
-          data
-            .map((t) => ({
+
+        const mapped: ITipoFormularioItem[] = data
+          .map((t) => {
+            const mostrarRaw = (t as any).mostrar;
+            const bloquearRaw = (t as any).bloquear;
+            const restringidoRaw = (t as any).restringido;
+
+            return {
               Id: Number(t.Id),
               Title: String(t.Title ?? ""),
               orden: Number((t as any).orden ?? 0),
               template: String((t as any).template ?? (t as any).Template ?? "")
                 .toUpperCase()
                 .trim(),
-            }))
-            .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
-        );
+
+              // ✅ map nuevos campos
+              nombre: String((t as any).nombre ?? ""),
+              // defaults: mostrar=true si viene undefined/null; bloquear/restringido=false
+              mostrar: mostrarRaw === false ? false : true,
+              bloquear: bloquearRaw === true,
+              restringido: restringidoRaw === true,
+            };
+          })
+          .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+          // ✅ mostrar=false => no aparece como opción
+          .filter((x) => x.mostrar !== false);
+
+        setTipos(mapped);
       } catch (e: unknown) {
         setErrorTipos(
           e instanceof Error ? e.message : "Error cargando Tipo formulario."
@@ -781,6 +832,14 @@ export default function WpFormularioDocumentos(
   };
   const asResults = (ids: number[]) => ({ results: ids });
 
+  const restrictedNameOk = useMemo(() => {
+    if (!isRestricted) return true;
+    const expected = normName(restrictedName);
+    if (!expected) return true; // si no configuraron nombre, no bloqueamos
+    if (!state.archivos || state.archivos.length !== 1) return false;
+    return normName(state.archivos[0]?.name || "") === expected;
+  }, [isRestricted, restrictedName, state.archivos]);
+
   /* ===== canSubmit (incluye validaciones) ===== */
   const canSubmit = useMemo(() => {
     const visibleSections = visibleSectionsFor(
@@ -811,16 +870,26 @@ export default function WpFormularioDocumentos(
           (r) => (r.descripcion || "").trim() && (r.codigo || "").trim()
         );
 
-    const filesOk = !needFiles || (state.archivos && state.archivos.length > 0);
+    const filesPresent =
+      !needFiles || (state.archivos && state.archivos.length > 0);
+
+    // ✅ restringido: exactamente 1 archivo + nombre esperado
+    const restrictedOk = !needFiles
+      ? true
+      : !isRestricted
+      ? true
+      : restrictedNameOk;
 
     return (
       !!selectedTemplate &&
+      !isBlocked &&
       desdeOk &&
       hastaOk &&
       rangoOk &&
       noVencidaOk &&
       codigosOk &&
-      filesOk &&
+      filesPresent &&
+      restrictedOk &&
       !state.isSaving &&
       !submitLockedRef.current
     );
@@ -832,11 +901,28 @@ export default function WpFormularioDocumentos(
     state.codigosDocumentos,
     state.archivos,
     state.isSaving,
+    isBlocked,
+    isRestricted,
+    restrictedNameOk,
   ]);
 
   /* ===== Files: SIN Array.from (compat TS viejo) ===== */
   const onPickFiles = (files: FileList | null): void => {
     if (!files || files.length === 0) return;
+
+    if (isRestricted) {
+      const f0 = files.item(0);
+      if (!f0) return;
+
+      // ✅ restringido: reemplaza y deja solo 1
+      setState((s) => ({
+        ...s,
+        archivos: [f0],
+        error: undefined,
+        success: undefined,
+      }));
+      return;
+    }
 
     const picked: File[] = [];
     for (let i = 0; i < files.length; i++) {
@@ -902,10 +988,38 @@ export default function WpFormularioDocumentos(
     });
   };
 
-  // --- onSave igual que el tuyo (sin cambios) ---
-  // (por espacio, lo dejé igual; no afecta lo de UI)
-
   const onSave = async (): Promise<void> => {
+    // ✅ bloquear=true => no deja guardar
+    if (isBlocked) {
+      setState((s) => ({
+        ...s,
+        error: "Este formulario está bloqueado por el administrador",
+        success: undefined,
+      }));
+      return;
+    }
+
+    // ✅ restringido: validación dura en onSave también
+    if (isRestricted) {
+      const expected = normName(restrictedName);
+      if (expected && (!state.archivos || state.archivos.length !== 1)) {
+        setState((s) => ({
+          ...s,
+          error: `Debés adjuntar 1 solo archivo: "${restrictedName}".`,
+          success: undefined,
+        }));
+        return;
+      }
+      if (expected && normName(state.archivos?.[0]?.name || "") !== expected) {
+        setState((s) => ({
+          ...s,
+          error: `El archivo debe llamarse exactamente "${restrictedName}".`,
+          success: undefined,
+        }));
+        return;
+      }
+    }
+
     if (!acquireLock()) return;
 
     const ids = (state.usuarioregistradorIds || []).filter(
@@ -974,6 +1088,23 @@ export default function WpFormularioDocumentos(
         throw new Error(
           "Debés adjuntar al menos un documento para poder guardar."
         );
+      }
+
+      // ✅ restringido: si el nombre está configurado, lo exigimos también aquí
+      if (visibleSections.has(4) && isRestricted) {
+        const expected = normName(restrictedName);
+        if (expected) {
+          if (!state.archivos || state.archivos.length !== 1) {
+            throw new Error(
+              `Debés adjuntar 1 solo archivo: "${restrictedName}".`
+            );
+          }
+          if (normName(state.archivos[0]?.name || "") !== expected) {
+            throw new Error(
+              `El archivo debe llamarse exactamente "${restrictedName}".`
+            );
+          }
+        }
       }
 
       const trim = (v?: string) => (v ? v.trim() : "");
@@ -1068,16 +1199,13 @@ export default function WpFormularioDocumentos(
       const archivosParaSubir = visibleSections.has(4) ? state.archivos : [];
       await sp.createFormulario(body, archivosParaSubir);
 
-      setState((prev) => ({
-        ...initialState,
-        fechaderegistro: prev.fechaderegistro || getTodayYMD(),
-        ruc: prev.ruc,
-        proveedorId: prev.proveedorId,
-        tipodeformulario: prev.tipodeformulario,
-        success: "Guardado correctamente.",
-      }));
-
+      // ✅ RESET TOTAL: como recién abierto (sin tipo seleccionado, sin mensajes)
+      setState({ ...initialState });
       setPeopleSelected([]);
+      setSelectedId(undefined);
+      setSelectedTemplate(undefined);
+
+      // ✅ si proveedor=true, re-hidrata como al abrir
       refreshProveedor();
     } catch (e: unknown) {
       setState((s) => ({
@@ -1121,11 +1249,15 @@ export default function WpFormularioDocumentos(
     setSelectedId(id);
     setSelectedTemplate(match?.template);
 
+    // ✅ si el tipo es restringido, limpiamos archivos para evitar arrastrar de otro tipo
+    const willBeRestricted = !!match?.restringido;
+
     setState((s) => ({
       ...s,
       tipodeformulario: tipo,
       error: undefined,
       success: undefined,
+      archivos: willBeRestricted ? [] : s.archivos,
       codigosDocumentos: isSctrExcel(tipo)
         ? s.codigosDocumentos?.length
           ? s.codigosDocumentos
@@ -1179,9 +1311,7 @@ export default function WpFormularioDocumentos(
                       <Nav
                         groups={navGroups}
                         onLinkClick={handleNavClick}
-                        selectedKey={
-                          selectedId ? String(selectedId) : undefined
-                        }
+                        selectedKey={selectedId ? String(selectedId) : undefined}
                         ariaLabel="Tipos de formulario"
                         styles={{ root: { width: "100%" } }}
                       />
@@ -1231,8 +1361,31 @@ export default function WpFormularioDocumentos(
               >
                 {!selectedTemplate && (
                   <MessageBar messageBarType={MessageBarType.info} isMultiline>
-                    Elegí un <strong>Tipo de formulario</strong> para mostrar
-                    las secciones.
+                    Elegí un <strong>Tipo de formulario</strong> para mostrar las
+                    secciones.
+                  </MessageBar>
+                )}
+
+                {/* ✅ bloquear=true banner */}
+                {selectedTemplate && isBlocked && (
+                  <MessageBar
+                    messageBarType={MessageBarType.warning}
+                    isMultiline
+                    styles={{ root: { marginTop: 12 } }}
+                  >
+                    Este formulario está bloqueado por el administrador
+                  </MessageBar>
+                )}
+
+                {/* ✅ restringido hint */}
+                {selectedTemplate && isRestricted && !!restrictedName && (
+                  <MessageBar
+                    messageBarType={MessageBarType.info}
+                    isMultiline
+                    styles={{ root: { marginTop: 12 } }}
+                  >
+                    Este formulario requiere un único archivo con nombre exacto:{" "}
+                    <strong>{restrictedName}</strong>
                   </MessageBar>
                 )}
 
@@ -1324,10 +1477,10 @@ export default function WpFormularioDocumentos(
                             onChange={(items?: IPersonaProps[]) => {
                               const arr = items || [];
                               setPeopleSelected(arr);
-                              const ids = arr
+                              const ids2 = arr
                                 .map((p) => Number(p.id))
                                 .filter((n) => !isNaN(n));
-                              setField("usuarioregistradorIds", ids);
+                              setField("usuarioregistradorIds", ids2);
                             }}
                             inputProps={{
                               "aria-label": "Buscar usuarios",
@@ -1384,12 +1537,10 @@ export default function WpFormularioDocumentos(
                           />
                         </div>
 
-                        {/* ✅ título centrado */}
                         <div className={classes.plazoHeader}>
                           Plazo de contrato
                         </div>
 
-                        {/* ✅ misma fila */}
                         <div className={classes.c6}>
                           <TextField
                             label=""
@@ -1450,7 +1601,11 @@ export default function WpFormularioDocumentos(
 
                         <div className={classes.c6}>
                           <TextField
-                            label="Año"
+                            label={
+                              isSctrExcel(state.tipodeformulario)
+                                ? "Tiempo de vigencia"
+                                : "Año"
+                            }
                             value={state.anio}
                             readOnly
                             disabled
@@ -1554,14 +1709,28 @@ export default function WpFormularioDocumentos(
                     <div className={classes.row}>
                       <div className={classes.c12}>
                         <Label>Adjuntar archivos</Label>
+
                         <input
                           type="file"
-                          multiple
+                          multiple={!isRestricted}
                           onChange={(e) => {
                             onPickFiles(e.currentTarget.files);
                             e.currentTarget.value = "";
                           }}
                         />
+
+                        {isRestricted &&
+                          !!restrictedName &&
+                          !restrictedNameOk && (
+                            <MessageBar
+                              messageBarType={MessageBarType.severeWarning}
+                              isMultiline
+                              styles={{ root: { marginTop: 10 } }}
+                            >
+                              Debés adjuntar <strong>1</strong> archivo con
+                              nombre exacto: <strong>{restrictedName}</strong>
+                            </MessageBar>
+                          )}
 
                         {(state.archivos || []).map((f, idx) => (
                           <div
@@ -1603,9 +1772,7 @@ export default function WpFormularioDocumentos(
                     text={state.isSaving ? "Guardando…" : "Guardar"}
                     disabled={!canSubmit}
                     iconProps={
-                      state.isSaving
-                        ? { iconName: "Sync" }
-                        : { iconName: "Save" }
+                      state.isSaving ? { iconName: "Sync" } : { iconName: "Save" }
                     }
                     styles={buttonStyles}
                   />
